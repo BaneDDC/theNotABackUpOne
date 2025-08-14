@@ -1,0 +1,2459 @@
+import { Scene } from "phaser"
+import { initMergeCore } from "../objects/mergeCore"
+import { BoxSpawner } from "../objects/BoxSpawner"
+import { HintButton } from "../objects/HintButton"
+import { GooCounter, GooCollectionSystem } from "../objects/GooCounter"
+import { TrashRecycler } from "../objects/TrashRecycler"
+import { RadioManager } from "../objects/RadioManager"
+import { EnemyManager } from "../objects/EnemyManager"
+import { StoreManager } from "../objects/StoreManager"
+import { PauseButton } from "../objects/ui/PauseButton"
+import { AlienOrderSystem } from "../objects/ui/AlienOrderSystem"
+
+export class Game extends Scene {
+  private toiletSound!: Phaser.Sound.BaseSound
+  private lastToiletSoundTime: number = 0
+  private readonly TOILET_SOUND_COOLDOWN = 7000 // 7 seconds in milliseconds
+  private plungerSound!: Phaser.Sound.BaseSound
+  private lastPlungerSoundTime: number = 0
+  private readonly PLUNGER_SOUND_COOLDOWN = 5000 // 5 seconds in milliseconds
+  private FlushCount: number = 0 // Start with toilet empty
+  private toilet!: Phaser.GameObjects.Sprite // Reference to toilet sprite
+  private plunger!: Phaser.GameObjects.Sprite // Reference to plunger sprite
+  private plungerOriginalX: number = 0
+  private plungerOriginalY: number = 0
+  private plungerVibrateTimer!: Phaser.Time.TimerEvent // Timer for plunger vibration
+  private boxSpawner!: BoxSpawner // Reference to box spawner
+  private customCursor!: Phaser.GameObjects.Sprite // Global custom cursor
+  private isPointerDown: boolean = false
+  private hintButton!: HintButton // Reference to hint button
+  private gooCounter!: GooCounter // Reference to goo counter
+  private toiletPulseTween?: Phaser.Tweens.Tween // Reference to toilet pulse tween
+  private tutorialPhase: boolean = true // Track if we're in tutorial phase
+  private portalCreated: boolean = false// Track if portal has been created
+  private sink!: Phaser.GameObjects.Sprite // Reference to sink sprite
+  private isSinkOn: boolean = false // Track sink state
+  private faucetSound!: Phaser.Sound.BaseSound // Reference to faucet sound
+  private sinkShakeTween?: Phaser.Tweens.Tween // Reference to sink shake tween
+  private toiletPaperBg!: Phaser.GameObjects.Sprite // Reference to toilet paper background sprite
+  private toiletPaperBlinkTimer!: Phaser.Time.TimerEvent // Timer for toilet paper blinking
+  private toiletPaperFlushTimer?: Phaser.Time.TimerEvent // Timer for toilet paper flush animation
+  private trashRecycler!: Phaser.GameObjects.Sprite // Reference to trash recycler sprite
+  private trashRecyclerManager!: TrashRecycler // Reference to trash recycler manager
+  private radioManager!: RadioManager // Reference to radio manager
+  private enemyManager!: EnemyManager // Reference to enemy manager
+  private storeManager!: StoreManager // Add store manager property
+  private recyclerCooldownTimer?: Phaser.Time.TimerEvent // Timer for recycler cooldown
+  private recyclerLastUsed: number = 0 // Timestamp of last recycler use
+  private readonly RECYCLER_COOLDOWN = 60000 // 60 seconds in milliseconds
+  private sceneManager!: import('../managers/SceneManager').SceneManager
+  private animationManager!: import('../managers/AnimationManager').AnimationManager
+  private researchLog!: Phaser.GameObjects.Image // Reference to research log image
+  private researchLogScale: number = 1.0 // Current scale of research log
+  private researchLogIsExpanded: boolean = false // Track if research log is expanded
+  private researchLogOriginalPosition = { x: 1112.359375, y: 249.42112037804378, scale: 0.05 }; // BoxSpawn position
+  private researchLogExpandedPosition = { x: 624.1456121888725, y: 259.6994420217029, scale: 0.35 }; // Clicked position
+  private scoreImage!: Phaser.GameObjects.Image // Reference to score image
+  private scoreImageScale: number = 1.0 // Current scale of score image
+  private interactiveMop!: Phaser.GameObjects.Sprite // Reference to interactive mop sprite
+  private interactiveMopOriginalX: number = 400 // Initial X position
+  private interactiveMopOriginalY: number = 300 // Initial Y position
+  private interactiveMopScale: number = 1.0 // Current scale of interactive mop
+  private isMopBeingDragged: boolean = false // Track if mop is currently being dragged
+
+  constructor() {
+    super("Game")
+  }
+
+  preload() {
+    // Load the research log image - try multiple URL formats
+    this.load.image('researchlog', 'https://raw.githubusercontent.com/localgod13/merge-assets/main/researchlog.png');
+    // Load the score image
+    this.load.image('score', 'https://raw.githubusercontent.com/localgod13/merge-assets/main/score.png');
+    
+    // Load alien order system images
+    this.load.image('alien1', 'https://raw.githubusercontent.com/localgod13/merge-assets/main/alien1.webp');
+    this.load.image('alien2', 'https://raw.githubusercontent.com/localgod13/merge-assets/main/alien2.webp');
+    this.load.image('alien3', 'https://raw.githubusercontent.com/localgod13/merge-assets/main/alien3.webp');
+    this.load.image('alien4', 'https://raw.githubusercontent.com/localgod13/merge-assets/main/alien4.webp');
+    this.load.image('card', 'https://raw.githubusercontent.com/localgod13/merge-assets/main/card.webp');
+    
+    // Add error handling for image loading
+    this.load.on('loaderror', (file: any) => {
+      // If image fails to load, we'll create a fallback in setupResearchLog
+    });
+    
+    this.load.on('complete', () => {
+      // Assets loaded successfully
+    });
+  }
+
+  create() {
+    this.physics.world.setBounds(0, 0, 1170, 540)
+    this.sceneManager = new (require('../managers/SceneManager').SceneManager)(this)
+    this.sceneManager.setupGlobalCustomCursor()
+    this.animationManager = new (require('../managers/AnimationManager').AnimationManager)(this as any)
+    this.animationManager.setupAnimatedBackground()
+    this.setupNewSprite()
+    this.setupToilet()
+    this.setupPlunger()
+    this.setupSink()
+    this.setupTowel()
+    this.setupToiletPaperBackground()
+    this.setupRadio()
+    this.setupTrashRecycler()
+    this.setupEnemyManager()
+    this.setupStoreManager()
+    this.setupResearchLog()
+    this.setupScoreImage()
+    this.setupInteractiveMop()
+    this.toiletSound = this.sound.add('toiletFlush', { volume: 0.5 })
+    this.plungerSound = this.sound.add('plungerSound', { volume: 0.7 })
+    this.setupCollisionEditorKey()
+
+    const saveGameChoice = this.registry.get('saveGameChoice')
+    let gameStateLoaded = false;
+    if (saveGameChoice === 'continue') {
+      gameStateLoaded = this.loadGameState();
+    } else {
+      this.tutorialPhase = true;
+      this.portalCreated = false;
+      this.FlushCount = 0;
+    }
+
+    if (!gameStateLoaded) {
+      this.updateToiletSprite()
+    }
+
+    this.setupMergeSystem()
+    this.setupHintButton()
+    this.setupGooCounter()
+    this.scene.launch('Bestiary')
+
+    const pauseUI = new PauseButton(this).create()
+    ;(this as any).pauseButton = pauseUI.button
+    ;(this as any).pauseSymbol = pauseUI.symbol
+
+    // Create the alien order system
+    const alienOrderSystem = new AlienOrderSystem(this)
+    const alienOrderUI = alienOrderSystem.create()
+    ;(this as any).alienOrderSystem = alienOrderUI.container
+    ;(this as any).alienHead = alienOrderUI.alienHead
+    ;(this as any).orderCard = alienOrderUI.card
+
+    // Set a random alien head when the system is created (removed timer)
+    alienOrderSystem.setRandomAlien()
+
+    // Store the alien order system instance for order checking
+    ;(this as any).alienOrderSystemInstance = alienOrderSystem
+
+    // Listen for merge completion to check orders
+    this.events.on('toilet:merged', (result: string) => {
+      if ((this as any).alienOrderSystemInstance) {
+        const orderCompleted = (this as any).alienOrderSystemInstance.checkOrderCompletion(result)
+        if (orderCompleted) {
+          console.log(`Order completed with merge result: ${result}`)
+        }
+      }
+    })
+
+    this.time.delayedCall(100, () => {
+      this.sceneManager.recreateCustomCursor()
+    })
+
+    if (saveGameChoice === 'continue' && ! this.tutorialPhase && this.portalCreated) {
+      this.time.delayedCall(1000, () => {
+        const existingPortal = this.children.getByName('portal');
+        if (!existingPortal) {
+          this.createPortalFromSave();
+        } else {
+          this.setupPortalInMergeSystem(existingPortal as Phaser.GameObjects.Sprite);
+        }
+      });
+    }
+
+    this.events.on('plunger:result', (result: 'green' | 'red' | 'yellow') => {
+      this.handlePlungerResult(result)
+    })
+
+    // Recycler minigame is now handled directly in TrashRecycler
+
+    this.events.on('tutorial:complete', () => {
+      this.completeTutorial();
+    });
+
+    this.events.on('toilet:flush', () => {
+      this.showToiletPaperFlush();
+    });
+  }
+
+  private handlePlungerResult(result: 'green' | 'red' | 'yellow') {
+    switch (result) {
+      case 'green':
+        this.FlushCount = Math.max(0, this.FlushCount - 2)
+        this.updateToiletSprite()
+        // use ItemManager helper for tier2 reward
+        const mergeForReward = this.getMergeSystem();
+        if (mergeForReward && mergeForReward.items && (mergeForReward.items as any).spawnTier2Reward) {
+          (mergeForReward.items as any).spawnTier2Reward();
+        }
+        break
+      case 'red':
+        this.FlushCount = Math.max(0, this.FlushCount - 1)
+        this.updateToiletSprite()
+        this.events.emit('toilet:penalty', 'Unstable Goo')
+        break
+      case 'yellow':
+        this.FlushCount = Math.max(0, this.FlushCount - 1)
+        this.updateToiletSprite()
+        break
+    }
+
+    // Handle toilet fixing and plunger movement if toilet becomes completely unclogged
+    if (this.FlushCount <= 0) {
+      // Ensure FlushCount is exactly 0, not negative
+      this.FlushCount = 0
+      this.updateToiletSprite()
+      
+      // Save game state when toilet is completely unclogged
+      this.saveGameState()
+      
+      this.stopPlungerVibrateTimer()
+      this.events.emit('toilet:fixed')
+      
+      // Move plunger back after sound finishes
+      const soundDuration = this.plungerSound.totalDuration * 1000
+      const bufferTime = 200
+      
+      this.time.delayedCall(soundDuration + bufferTime, () => {
+        this.movePlungerToOriginalPosition()
+        
+        // Spawn a new box after toilet is unclogged and plunger is moved back
+        this.time.delayedCall(1000, () => {
+          this.boxSpawner.spawnBox()
+        })
+      })
+    }
+  }
+
+  // Recycler minigame is now handled directly in TrashRecycler
+
+  private setupHintButton() {
+    // Create hint button positioned under the bestiary on the right side
+    this.hintButton = new HintButton(this)
+    
+    // Position under bestiary: bestiary is at top-right corner with 80px size and 20px padding
+    // So bestiary center is at (width - 20 - 40, 20 + 40) = (width - 60, 60)
+    // Position hint button below it with some spacing, moved down 15px
+    const hintButtonX = this.scale.width - 60; // Same X as bestiary center
+    const hintButtonY = 60 + 40 + 30 + 15; // Bestiary center Y + half bestiary size + spacing + 15px down
+    
+    this.hintButton.setPosition(hintButtonX, hintButtonY)
+  }
+
+  private setupMergeSystem() {
+    // Define toilet merge zone position (around the toilet sprite)
+    const toiletZone = { 
+      x: this.toilet.x, 
+      y: this.toilet.y, 
+      w: 140, 
+      h: 140 
+    };
+
+    // Initialize the merge system without portal sprite initially
+    const merge = initMergeCore(this, null, toiletZone);
+    
+    // Store merge system reference for towel functionality
+    (this as any).mergeSystem = merge;
+
+    // Initialize box spawner
+    this.boxSpawner = new BoxSpawner(this, merge.items);
+
+    // Initialize trash recycler manager
+    this.trashRecyclerManager = new (require('../objects/TrashRecycler').TrashRecycler)(this, merge.items, this.trashRecycler);
+
+    // Listen for successful toilet merges
+    this.events.on("toilet:merged", (resultName: string) => {
+      // Check if this is the tutorial merge (Battery + Loose Wires = Powered Wire)
+      if (this.tutorialPhase && resultName === "Powered Wire") {
+        this.handleTutorialMerge();
+      } else if (!this.tutorialPhase) {
+        // Normal gameplay - send merged item to portal
+        if (merge.spawner) {
+          merge.spawner.spawnAtPortal(resultName);
+        }
+      }
+    });
+
+    // Listen for penalty events (when invalid merges or single items are flushed)
+    this.events.on("toilet:penalty", (penaltyItem: string) => {
+
+      if (!this.tutorialPhase && merge.spawner) {
+
+        merge.spawner.spawnPenaltyItem(penaltyItem);
+      } else {
+
+      }
+    });
+
+    // Listen for item drops to handle physics falling
+    this.input.on('dragend', (pointer: Phaser.Input.Pointer, gameObject: any) => {
+      if (gameObject && gameObject.itemName) {
+        this.handleItemDrop(gameObject);
+      }
+    });
+
+    // Wait for all assets to be loaded AND give extra time for texture cache to be ready
+    merge.items.getAssetManager().loadAllAssets().then(() => {
+      // Add a small delay to ensure all textures are properly cached
+      this.time.delayedCall(500, () => {
+        // Only start portal spawner if tutorial is complete and we have a spawner
+        if (!this.tutorialPhase && merge.spawner) {
+          merge.spawner.start(5000); // Spawn tier 1 items every 5 seconds
+
+        }
+        
+        // Initialize tier 1 count for the box spawner monitoring
+        this.time.delayedCall(1000, () => {
+          // Force an initial check to set the baseline
+          if (this.boxSpawner && (this.boxSpawner as any).checkTier1Items) {
+            (this.boxSpawner as any).checkTier1Items();
+          }
+        });
+      });
+    });
+
+    // Only spawn the initial box if we're in tutorial mode
+    // For loaded saves, boxes will be spawned through normal gameplay
+    if (this.tutorialPhase) {
+      this.time.delayedCall(2000, () => {
+        this.boxSpawner.spawnBox();
+      });
+    }
+  }
+
+  private handleTutorialMerge() {
+    // Tutorial merge completed - create and animate portal
+    this.createTutorialPortal();
+  }
+
+  private createTutorialPortal() {
+    if (this.portalCreated && this.children.getByName('portal')) {
+      // Portal already exists, don't create another one
+      return;
+    }
+    
+    this.portalCreated = true;
+    
+    // Create portal animation - forward then backward (34 frames total, ignoring last 2)
+    const forwardFrames = []
+    const backwardFrames = []
+    
+    // Add forward frames (0-33, skipping the last 2 blank frames)
+    for (let i = 0; i < 34; i++) {
+      forwardFrames.push({ key: 'portal', frame: i })
+    }
+    
+    // Add backward frames (32-1) to avoid duplicating frame 33 and frame 0
+    for (let i = 32; i >= 1; i--) {
+      backwardFrames.push({ key: 'portal', frame: i })
+    }
+    
+    this.anims.create({
+      key: 'portalAnim',
+      frames: [...forwardFrames, ...backwardFrames],
+      frameRate: 12,
+      repeat: -1 // Loop infinitely
+    })
+
+    // Create the portal sprite at specified position - start very small
+    const portal = this.add.sprite(564.96, 52.41, 'portal')
+    portal.setDisplaySize(0, 0) // Start at size 0
+    portal.setFlipY(true)
+    portal.setName('portal') // Add name so we can find it later
+    portal.setDepth(-2) // Set lower depth so droppable items appear in front
+    portal.play('portalAnim')
+
+    // Animate portal growing to full size
+    this.tweens.add({
+      targets: portal,
+      displayWidth: 600,
+      displayHeight: 200,
+      duration: 2000, // 2 seconds to grow
+      ease: 'Back.easeOut',
+      onComplete: () => {
+        // Portal is now fully grown - update merge system and spawn tutorial items
+        this.setupPortalInMergeSystem(portal);
+        this.spawnTutorialItems();
+      }
+    });
+  }
+
+  private setupPortalInMergeSystem(portalSprite: Phaser.GameObjects.Sprite) {
+    // Update the merge system with the portal sprite
+    const merge = this.getMergeSystem();
+    if (merge) {
+      // Create a new spawner since we didn't have one during tutorial
+      const { PortalSpawner } = require('../objects/mergeCore');
+      const newSpawner = new PortalSpawner(this, merge.items, portalSprite);
+      
+      // Set the spawner in the merge system
+      merge.spawner = newSpawner;
+      
+      // Initialize the spawner's mouth position
+      (newSpawner as any).initMouth();
+    }
+  }
+
+  private spawnTutorialItems() {
+    // Spawn "Powered Wire" and "Unstable Goo" from the portal
+    const merge = this.getMergeSystem();
+    if (merge && merge.spawner) {
+
+      
+      // Spawn Powered Wire first
+      merge.spawner.spawnAtPortal("Powered Wire");
+      
+      // Spawn Unstable Goo after a short delay
+      this.time.delayedCall(1500, () => {
+        if (merge.spawner) {
+          merge.spawner.spawnPenaltyItem("Unstable Goo");
+          
+          // Complete tutorial after both items are spawned
+          this.time.delayedCall(2000, () => {
+            this.completeTutorial();
+          });
+        }
+      });
+    } else {
+
+
+
+      
+      // Fallback: complete tutorial anyway
+      this.time.delayedCall(1000, () => {
+        this.completeTutorial();
+      });
+    }
+  }
+
+  private completeTutorial() {
+    this.tutorialPhase = false;
+    
+    // Start normal portal spawning
+    const merge = this.getMergeSystem();
+    if (merge && merge.spawner) {
+      merge.spawner.start(5000); // Spawn tier 1 items every 5 seconds
+    }
+    
+    // Show tutorial completion message
+    const message = this.add.text(this.scale.width / 2, this.scale.height / 2, 
+      "Tutorial Complete!\\nNormal gameplay begins now.", {
+      fontSize: "24px",
+      color: "#27ae60",
+      backgroundColor: "#000000",
+      padding: { x: 20, y: 10 },
+      align: "center"
+    });
+    message.setOrigin(0.5);
+    message.setDepth(3000);
+    
+    // Fade out message after 3 seconds
+    this.time.delayedCall(3000, () => {
+      this.tweens.add({
+        targets: message,
+        alpha: 0,
+        duration: 1000,
+        onComplete: () => message.destroy()
+      });
+    });
+  }
+
+  private startToiletPulsinging() {
+    // Don't start pulsing if toilet is already pulsing or if it's clogged
+    if (this.toiletPulseTween || this.FlushCount >= 4) return;
+
+    // Store the current scale values when effects are added
+    const currentScaleX = this.toilet.scaleX;
+    const currentScaleY = this.toilet.scaleY;
+
+    // Delegate toilet pulsing to AnimationManager
+    this.toiletPulseTween = (this.animationManager as any).pulseTarget(this.toilet, currentScaleX, currentScaleY, 1.25, 625)
+
+    // Stop pulsing after 10 seconds or when toilet is used
+    this.time.delayedCall(10000, () => {
+      this.stopToiletPulsing();
+    });
+  }
+
+  private stopToiletPulsing() {
+    if (this.toiletPulseTween) {
+      this.toiletPulseTween.destroy();
+      this.toiletPulseTween = undefined;
+    }
+  }
+
+  private playToiletSound() {
+    const currentTime = this.time.now
+    
+    // If toilet is clogged (FlushCount >= 4), only shake - no sound or increment
+    if (this.FlushCount >= 4) {
+      this.shakeToilet()
+      return
+    }
+    
+    // Check if enough time has passed since the last sound play
+    if (currentTime - this.lastToiletSoundTime >= this.TOILET_SOUND_COOLDOWN) {
+      this.toiletSound.play()
+      this.lastToiletSoundTime = currentTime
+      
+      // Check if toilet has any items (1 or more) BEFORE emitting flush event
+      const merge = this.getMergeSystem()
+      const hasAnyItems = merge && merge.toilet && merge.toilet.hasAnyItems()
+      
+      // Increment flush count if there are any items in the toilet (1 or more)
+      if (hasAnyItems) {
+        this.FlushCount++
+        this.updateToiletSprite()
+        
+        // Move plunger closer to toilet when it gets clogged
+        if (this.FlushCount >= 4) {
+          this.movePlungerToToilet()
+        }
+      }
+      
+      // Emit flush event for merge system AFTER checking and incrementing flush count
+      this.events.emit("toilet:flush")
+      
+      // Always shake the toilet when flushed, regardless of items
+      this.shakeToilet()
+    }
+  }
+
+  private usePlunger() {
+    // Only work if toilet is clogged
+    if (this.FlushCount <= 0) return
+    
+    const currentTime = this.time.now
+    
+    // Play plunger sound with cooldown (only when plunger is ready to use)
+    if (currentTime - this.lastPlungerSoundTime >= this.PLUNGER_SOUND_COOLDOWN) {
+      this.plungerSound.play()
+      this.lastPlungerSoundTime = currentTime
+    }
+    
+    // Launch the plunge mini-game - let the mini-game handle flush count changes
+    this.scene.pause() // Pause the main game
+    this.scene.launch('PlungeMiniGame', {
+      toiletX: this.toilet.x,
+      toiletY: this.toilet.y
+    })
+    
+    // Shake plunger to show it's being used
+    this.shakePlunger()
+    
+    // Remove the automatic toilet fixing logic - mini-game will handle this
+    // The mini-game will call the appropriate methods based on the result
+  }
+
+  private setupPlunger() {
+    // Position plunger to the right of the sink
+    this.plungerOriginalX = 1050
+    this.plungerOriginalY = 450
+    
+    this.plunger = this.physics.add.staticSprite(this.plungerOriginalX, this.plungerOriginalY, 'plunger')
+    this.plunger.setDisplaySize(120, 120)
+    this.plunger.setName('plunger')
+    this.plunger.setDepth(0) // Changed from -1 to 0 to be in front of Goo-mba (-0.5)
+    
+    // Set up physics body
+    this.plunger.body.setSize(120, 120)
+    this.plunger.body.setOffset(-60, -60)
+    
+    // Start with plungerNOT interactive (disable interactivity properly)
+    this.plunger.removeInteractive()
+    
+    // Add click handler that will only work when plunger is interactive
+    this.plunger.on('pointerdown', () => {
+      this.usePlunger()
+    })
+  }
+
+  private movePlungerToToilet() {
+    // Move plunger to specific coordinates when toilet is clogged
+    const targetX = 873.00
+    const targetY = 342.00
+    
+    this.tweens.add({
+      targets: this.plunger,
+      x: targetX,
+      y: targetY,
+      duration: 1000,
+      ease: 'Power2',
+      onComplete: () => {
+        // Make plunger interactive only when it reaches the toilet
+        this.plunger.setInteractive()
+      }
+    })
+    
+    // Start vibration timer when plunger is moved to toilet
+    this.startPlungerVibrateTimer()
+  }
+
+  private movePlungerToOriginalPosition() {
+    // Make plunger unclickable immediately when starting to move back
+    this.plunger.removeInteractive()
+    
+    // Move plunger back to original position when toilet is fixed
+    this.tweens.add({
+      targets: this.plunger,
+      x: this.plungerOriginalX,
+      y: this.plungerOriginalY,
+      duration: 1500,
+      ease: 'Power2'
+      // Plunger remains non-interactive at original position
+    })
+  }
+
+  private startPlungerVibrateTimer() {
+    // Stop existing timer if it exists
+    this.stopPlungerVibrateTimer()
+    
+    // Only start timer if toilet needs fixing
+    if (this.FlushCount <= 0) return
+    
+    // Create timer that vibrates plunger every 3 seconds
+    this.plungerVibrateTimer = this.time.addEvent({
+      delay: 3000, // 3 seconds
+      callback: () => {
+        // Only vibrate if toilet still needs fixing
+        if (this.FlushCount > 0) {
+          this.vibratePlunger()
+        } else {
+          this.stopPlungerVibrateTimer()
+        }
+      },
+      loop: true
+    })
+  }
+
+  private stopPlungerVibrateTimer() {
+    if (this.plungerVibrateTimer) {
+      this.plungerVibrateTimer.destroy()
+      this.plungerVibrateTimer = null!
+    }
+  }
+
+  private shakePlunger() {
+    if (!this.plunger) return
+    // Delegate plunger shake to AnimationManager
+    this.animationManager.shakeSprite(this.plunger, { intensity: 6, duration: 800, interval: 40 })
+  }
+
+  private vibratePlunger() {
+    if (!this.plunger) return
+    // Delegate plunger subtle vibration to AnimationManager
+    this.animationManager.shakeSprite(this.plunger, { intensity: 3, duration: 500, interval: 30 })
+  }
+
+  private updateToiletSprite() {
+    if (! this.toilet) return
+    
+    // Determine which toilet texture to use based on FlushCount
+    let textureKey = 'toilet' // Default (FlushCount = 0)
+    
+    if (this.FlushCount === 1) {
+      textureKey = 'toilet1'
+    } else if (this.FlushCount === 2) {
+      textureKey = 'toilet2'
+    } else if (this.FlushCount === 3) {
+      textureKey = 'toilet3'
+    } else if (this.FlushCount >= 4) {
+      textureKey = 'toilet4'
+    }
+    
+    // Update the toilet texture
+    this.toilet.setTexture(textureKey)
+  }
+
+  private shakeToilet() {
+    if (!this.toilet) return
+
+    // Store original position
+    const originalX = this.toilet.x
+    const originalY = this.toilet.y
+
+    // Create a variable to track shake intensity that decreases over time
+    let shakeIntensity = 8 // Start with strong shake (8 pixels)
+    const minIntensity = 0.5 // End with very light shake (0.5 pixel)
+    const shakeDuration = 6000 // 6 seconds total
+    const shakeInterval = 50 // Update every 50ms
+
+    // Function to update shake position
+    const updateShake = () => {
+      const randomX = originalX + Phaser.Math.Between(-shakeIntensity, shakeIntensity)
+      const randomY = originalY + Phaser.Math.Between(-shakeIntensity, shakeIntensity)
+      this.toilet.setPosition(randomX, randomY)
+    }
+
+    // Start the shaking timer
+    const shakeTimer = this.time.addEvent({
+      delay: shakeInterval,
+      callback: updateShake,
+      repeat: (shakeDuration / shakeInterval) - 1 // Total number of shakes
+    })
+
+    // Gradually reduce shake intensity over time
+    const intensityTimer = this.time.addEvent({
+      delay: 200, // Update intensity every 200ms
+      callback: () => {
+        // Gradually reduce intensity from 8 to 0.5 over 6 seconds
+        const elapsed = 6000 - shakeTimer.getRemaining()
+        const progress = elapsed / shakeDuration
+        shakeIntensity = Math.max(minIntensity, 8 - (7.5 * progress))
+      },
+      repeat: (shakeDuration / 200) - 1
+    })
+
+    // Stop shaking and reset position after 6 seconds
+    this.time.delayedCall(shakeDuration, () => {
+      shakeTimer.destroy()
+      intensityTimer.destroy()
+      this.toilet.setPosition(originalX, originalY)
+    })
+  }
+
+  private setupToilet() {
+    // Create the toilet sprite to the left of the towel but closer
+    // Moving 10px to the left from previous position (867.68 - 10 = 857.68)
+    this.toilet = this.physics.add.staticSprite(857.68, 380.70, 'toilet')
+    this.toilet.setDisplaySize(200.00, 200.00)
+    this.toilet.setName('toilet') // Set name so we can find it later
+    this.toilet.setDepth(-1) // Set lower depth so droppable items appear in front
+    
+    // Set up physics body for collision detection
+    this.toilet.body.setSize(200, 200)
+    this.toilet.body.setOffset(-100, -100) // Center the physics body
+    
+    // Make toilet interactive and add click handler
+    this.toilet.setInteractive()
+    this.toilet.on('pointerdown', () => {
+      this.playToiletSound()
+    })
+  }
+
+  private setupSink() {
+    // Create the sink sprite at the specified position and size
+    this.sink = this.physics.add.staticSprite(1121.33, 419.08, 'sink')
+    this.sink.setDisplaySize(200.00, 200.00)
+    this.sink.setName('sink')
+    this.sink.setDepth(0) // Changed from -1 to 0 to be in front of Goo-mba (-0.5)
+    
+    // Set up physics body
+    this.sink.body.setSize(200, 200)
+    this.sink.body.setOffset(-100, -100)
+    
+    // Create faucet sound WITHOUT loop - let it play once and finish naturally
+    this.faucetSound = this.sound.add('faucet', { volume: 0.7, loop: false })
+    
+    // Make sink interactive and add click handler
+    this.sink.setInteractive()
+    this.sink.on('pointerdown', () => {
+      this.toggleSink()
+    })
+  }
+
+  private toggleSink() {
+    if (this.isSinkOn) {
+      // Turn sink off - switch back to original sink texture
+      this.sink.setTexture('sink')
+      
+      // Stop the faucet sound immediately
+      if (this.faucetSound.isPlaying) {
+        this.faucetSound.stop()
+      }
+      
+      this.isSinkOn = false
+      
+      // Stop the shake animation
+      this.stopSinkShake()
+    } else {
+      // Turn sink on - switch to sinkon texture and play faucet sound
+      this.sink.setTexture('sinkon')
+      this.faucetSound.play()
+      this.isSinkOn = true
+      
+      // Start the shake animation
+      this.startSinkShake()
+      
+      // Listen for when the faucet sound completes naturally and automatically turn off sink
+      this.faucetSound.once('complete', () => {
+        if (this.isSinkOn) {
+          // Automatically turn sink off when sound finishes naturally
+          this.sink.setTexture('sink')
+          this.isSinkOn = false
+          this.stopSinkShake()
+        }
+      })
+    }
+    
+    // Add visual feedback - slight scale animation
+    this.tweens.add({
+      targets: this.sink,
+      scaleX: this.sink.scaleX * 1.05,
+      scaleY: this.sink.scaleY * 1.05,
+      duration: 150,
+      yoyo: true,
+      ease: 'Power2.easeOut'
+    })
+  }
+
+  private startSinkShake() {
+    // Stop any existing shake animation
+    this.stopSinkShake()
+    
+    // Delegate subtle shake to AnimationManager
+    this.sinkShakeTween = this.animationManager.subtleJitter(this.sink, { intensity: 1, interval: 100 })
+  }
+
+  private stopSinkShake() {
+    if ( this.sinkShakeTween) {
+      this.sinkShakeTween.destroy()
+      this.sinkShakeTween = undefined
+      
+      // Reset sink to original position
+      this.sink.setPosition(1121.33, 419.08)
+    }
+  }
+
+  private setupTowel() {
+    // Create the towel sprite at the specified position and size
+    const towel = this.physics.add.staticSprite(967.68, 363.52, 'towel')
+    towel.setDisplaySize(131.22, 131.22)
+    towel.setName('towel')
+    towel.setDepth(-1) // Set lower depth so droppable items appear in front
+    
+    // Set up physics body
+    towel.body.setSize(131.22, 131.22)
+    towel.body.setOffset(-65.61, -65.61)
+    
+    // Make towel interactive and add click handler
+    towel.setInteractive()
+    towel.on('pointerdown', () => {
+      this.onTowelClick()
+    })
+  }
+
+  private onTowelClick() {
+    // Only work if toilet is not clogged (FlushCount is 0, meaning toilet is clean)
+    // When FlushCount is 0, the plunger is not active, so toilet is not clogged
+    if (this.FlushCount > 0) return // If FlushCount > 0, toilet is clogged, don't spawn items
+    
+    // Get all existing tier 1 items on the field
+    const existingTier1Items = this.getExistingTier1Items()
+    
+    // Check if there are any valid combinations among existing items
+    if (this.hasValidTier1Combinations(existingTier1Items)) return
+    
+    // If no valid combinations exist, spawn a compatible item
+    this.spawnCompatibleTier1Item(existingTier1Items)
+  }
+
+  private getExistingTier1Items(): string[] {
+    const tier1Items: string[] = []
+    
+    // Get all items from the scene that have itemName property
+    this.children.list.forEach(child => {
+      if ((child as any).itemName) {
+        const itemName = (child as any).itemName
+        // Check if it's a tier 1 item using the merge data
+        if (this.isTier1Item(itemName)) {
+          tier1Items.push(itemName)
+        }
+      }
+    })
+    
+    return tier1Items
+  }
+
+  private isTier1Item(itemName: string): boolean {
+    // Import the tier 1 check from merge data
+    const { isTier1 } = require('../config/mergeDataFull')
+    return isTier1(itemName)
+  }
+
+  private hasValidTier1Combinations(tier1Items: string[]): boolean {
+    const { getMergeResult } = require('../config/mergeDataFull')
+    
+    // Check all pairs of existing tier 1 items
+    for (let i = 0; i < tier1Items.length; i++) {
+      for (let j = i + 1; j < tier1Items.length; j++) {
+        const result = getMergeResult(tier1Items[i], tier1Items[j])
+        if (result) {
+          return true // Found at least one valid combination
+        }
+      }
+    }
+    
+    return false // No valid combinations found
+  }
+
+  private spawnCompatibleTier1Item(existingTier1Items: string[]) {
+    if (existingTier1Items.length === 0) {
+      // If no tier 1 items exist, spawn a random one
+      const { pickRandomTier1 } = require('../config/mergeDataFull')
+      const randomItem = pickRandomTier1()
+      this.spawnItemFromTowel(randomItem)
+      return
+    }
+    
+    const { getTier1Partners, SPAWNABLE_TIER1 } = require('../config/mergeDataFull')
+    
+    // Find all possible partners for existing items
+    const possiblePartners: string[] = []
+    
+    existingTier1Items.forEach(existingItem => {
+      const partners = getTier1Partners(existingItem)
+      partners.forEach(partner => {
+        if (!possiblePartners.includes(partner) && !existingTier1Items.includes(partner)) {
+          possiblePartners.push(partner)
+        }
+      })
+    })
+    
+    if (possiblePartners.length > 0) {
+      // Spawn a random compatible partner
+      const randomPartner = possiblePartners[Math.floor(Math.random() * possiblePartners.length)]
+      this.spawnItemFromTowel(randomPartner)
+    } else {
+      // Fallback: spawn any spawnable tier 1 item
+      const availableItems = SPAWNABLE_TIER1.filter(item => !existingTier1Items.includes(item))
+      if (availableItems.length > 0) {
+        const randomItem = availableItems[Math.floor(Math.random() * availableItems.length)]
+        this.spawnItemFromTowel(randomItem)
+      }
+    }
+  }
+
+  private spawnItemFromTowel(itemName: string) {
+    // Get reference to the merge system's item manager
+    const merge = this.getMergeSystem()
+    if (!merge) return
+    
+    // Spawn item behind the towel (slightly to the left)
+    const towelX = 967.68
+    const towelY = 363.52
+    const spawnX = towelX - 80 // Spawn 80 pixels to the left of towel
+    const spawnY = towelY
+    
+    const item = merge.items.spawn(itemName, spawnX, spawnY)
+    
+    // Animate item sliding out from behind towel
+    this.tweens.add({
+      targets: item,
+      x: towelX + 100, // Slide to the right of towel
+      duration: 800,
+      ease: 'Power2.easeOut',
+      onComplete: () => {
+        // Then drop to floor level
+        const floorY = 473 - 18 // Floor platform top minus half item height
+        this.tweens.add({
+          targets: item,
+          y: floorY,
+          duration: 400,
+          ease: 'Power2.easeIn'
+        })
+      }
+    })
+    
+    // Add slight rotation during slide
+    this.tweens.add({
+      targets: item,
+      angle: 90,
+      duration: 800,
+      ease: 'Power1.easeOut'
+    })
+  }
+
+  private getMergeSystem() {
+    // Return reference to the merge system if available
+    // This assumes the merge system is stored as a scene property
+    return (this as any).mergeSystem || null
+  }
+
+  private setupNewSprite() {
+    // Create animation for the new sprite (4 frames at 0.25 fps)
+    this.anims.create({
+      key: 'newSpriteAnim',
+      frames: this.anims.generateFrameNumbers('newSprite', { start: 0, end: 3 }),
+      frameRate: 0.25, // 0.25 frames per second (1 frame every 4 seconds)
+      duration: 16000, // 16 seconds total duration (4 frames * 4 seconds each)
+      repeat: -1 // Loop forever
+    })
+
+    // Create the new sprite at specified position with exact dimensions - static, no interaction
+    const newSprite = this.add.sprite(651.8026101141925, 186.97354614237588, 'newSprite', 0)
+    newSprite.setDisplaySize(87.48137007449901, 47.135068652692226)
+    newSprite.play('newSpriteAnim')
+  }
+
+  private setupBoxSpawner() {
+    // Create a new BoxSpawner instance
+    this.boxSpawner = new BoxSpawner(this)
+  }
+
+  public recreateCustomCursor() {
+    if (!this.sceneManager) return
+    this.sceneManager.recreateCustomCursor()
+  }
+
+  private setupToiletPaperBackground() {
+    // Create the toilet paper background sprite at the specified position using the @a-futurist-2 asset
+    this.toiletPaperBg = this.add.sprite(750, 333, 'toilet_paper_asset')
+    this.toiletPaperBg.setDisplaySize(80, 80)
+    this.toiletPaperBg.setName('toilet_paper_background')
+    this.toiletPaperBg.setDepth(-5) // Set low depth so it appears behind other objects
+    
+    // No physics body or interactivity - it's just a background decoration
+    
+    // Start the random blinking animation with new timing
+    this.startToiletPaperBlinking()
+  }
+
+  private showToiletPaperFlush() {
+    if (!this.toiletPaperBg || !this.toiletPaperBg.active) return
+    
+    // Cancel any existing flush timer
+    if (this.toiletPaperFlushTimer) {
+      this.toiletPaperFlushTimer.destroy()
+      this.toiletPaperFlushTimer = undefined
+    }
+    
+    // Cancel blink timer during flush animation
+    if (this.toiletPaperBlinkTimer) {
+      this.toiletPaperBlinkTimer.destroy()
+      this.toiletPaperBlinkTimer = undefined
+    }
+    
+    // Switch to tp texture for flush animation and maintain size
+    this.toiletPaperBg.setTexture('tp')
+    this.toiletPaperBg.setDisplaySize(80, 80) // Ensure size stays consistent
+    
+    // After 6 seconds, switch back to original texture and restart blinking
+    this.toiletPaperFlushTimer = this.time.delayedCall(6000, () => {
+      if (this.toiletPaperBg && this.toiletPaperBg.active) {
+        this.toiletPaperBg.setTexture('toilet_paper_asset')
+        this.toiletPaperBg.setDisplaySize(80, 80) // Ensure size stays consistent
+        // Restart the blinking animation
+        this.startToiletPaperBlinking()
+      }
+      this.toiletPaperFlushTimer = undefined
+    })
+  }
+
+  private startToiletPaperBlinking() {
+    // Don't start blinking if flush animation is active
+    if (this.toiletPaperFlushTimer) return
+    
+    // Create a timer that triggers every 10 seconds (changed from 10-15 seconds random)
+    const scheduleNextBlink = () => {
+      const blinkDelay = 10000 // 10 seconds in milliseconds
+      
+      this.toiletPaperBlinkTimer = this.time.delayedCall(blinkDelay, () => {
+        // Only blink if not in flush mode
+        if (!this.toiletPaperFlushTimer) {
+          this.blinkToiletPaper()
+          scheduleNextBlink() // Schedule the next blink
+        }
+      })
+    }
+    
+    // Start the first blink cycle
+    scheduleNextBlink()
+  }
+
+  private blinkToiletPaper() {
+    if (! this.toiletPaperBg || !this.toiletPaperBg.active || this.toiletPaperFlushTimer) return
+    
+    // Switch to tpblink texture and maintain size
+    this.toiletPaperBg.setTexture('tpblink')
+    this.toiletPaperBg.setDisplaySize(80, 80) // Ensure size stays consistent
+    
+    // After 0.5 seconds, switch back to original texture (changed from 1 second)
+    this.time.delayedCall(500, () => {
+      if (this.toiletPaperBg && this.toiletPaperBg.active && ! this.toiletPaperFlushTimer) {
+        this.toiletPaperBg.setTexture('toilet_paper_asset')
+        this.toiletPaperBg.setDisplaySize(80, 80) // Ensure size stays consistent
+      }
+    })
+  }
+
+  private setupCollisionEditorKey() {
+    // Add F9 key listener to launch collision editor
+    this.input.keyboard!.on('keydown-F9', () => {
+      // Pause this scene and launch the collision editor
+      this.scene.pause()
+      this.scene.launch('CollisionEditor')
+    })
+
+    // Add F8 key listener to launch item catalog
+    this.input.keyboard!.on('keydown-F8', () => {
+      // Pause this scene and launch the item catalog
+      this.scene.pause()
+      this.scene.launch('ItemCatalog')
+      
+      // Recreate cursor after a brief delay to ensure it's on top of the overlay
+      this.time.delayedCall(100, () => {
+        this.recreateCustomCursor()
+      })
+    })
+
+    // Add F7 key listener to open store
+    this.input.keyboard!.on('keydown-F7', () => {
+      if (this.storeManager) {
+        this.storeManager.openStore()
+      }
+    })
+
+    // Add ESC key listener to launch pause menu
+    this.input.keyboard!.on('keydown-ESC', () => {
+      // Pause this scene and launch the pause menu
+      this.scene.pause()
+      this.scene.launch('PauseMenu')
+    })
+
+    // Add Shift+D hotkey for texture debugging - improved implementation
+    this.input.keyboard!.on('keydown', (event: KeyboardEvent) => {
+      if (event.shiftKey && event.key.toLowerCase() === 'd') {
+
+        const ptr = this.input.activePointer;
+
+        
+        // Get all objects under the pointer
+        const hits = this.input.hitTestPointer(ptr);
+
+        
+        if (hits.length > 0) {
+          const top = hits[0] as any;
+
+          
+          if (top && top.texture) {
+
+            this.logTextureInfo(top.texture.key, top);
+          } else {
+
+            // Try to get texture info from other properties
+            if (top.frame && top.frame.texture) {
+
+              this.logTextureInfo(top.frame.texture.key, top);
+                    } else {
+          // No texture found on object
+        }
+          }
+        } else {
+
+          
+          // Also try to get all interactive objects in the scene
+          const allObjects = this.children.list.filter(child => child.input && child.input.enabled);
+
+          
+          allObjects.forEach((obj, index) => {
+            const bounds = (obj as any).getBounds ? (obj as any).getBounds() : null;
+            // Object debug info
+          });
+        }
+      }
+    });
+
+    // Add = key listener to give 10 goo (cheat/debug feature)
+    this.input.keyboard!.on('keydown', (event: KeyboardEvent) => {
+      if (event.key === '=') {
+        // Only give goo if no UI is open (store manager not open)
+        if (!this.storeManager || !this.storeManager.isOpen()) {
+          // Give 10 goo to the player
+          if (this.gooCounter) {
+            this.gooCounter.collectGoo(10)
+            
+            // Show a brief notification
+            const notification = this.add.text(this.scale.width / 2, this.scale.height / 2, "+10 Goo!", {
+              fontSize: "24px",
+              color: "#27ae60",
+              backgroundColor: "rgba(0,0,0,0.8)",
+              padding: { x: 12, y: 8 }
+            })
+            notification.setOrigin(0.5)
+            notification.setDepth(3000)
+            
+            // Animate and fade out the notification
+            this.tweens.add({
+              targets: notification,
+              y: notification.y - 50,
+              alpha: 0,
+              duration: 1500,
+              ease: 'Power2.easeOut',
+              onComplete: () => notification.destroy()
+            })
+          }
+        }
+      }
+    })
+  }
+
+  private logTextureInfo(key: string, obj?: Phaser.GameObjects.GameObject) {
+    // delegate to SceneManager
+    if (!this.sceneManager) return
+    this.sceneManager.logTextureInfo(key, obj)
+  }
+
+  private setupGooCounter() {
+    // Create goo counter in top-left corner
+    this.gooCounter = new GooCounter(this);
+    
+    // Register the counter with the global collection system
+    GooCollectionSystem.getInstance().setGooCounter(this.gooCounter);
+  }
+
+  private setupRadio() {
+    const radio = this.add.sprite(964.6513866231648, 195.0240238581764, 'radio')
+    radio.setDisplaySize(88.63848717161304, 88.63848717161304)
+    radio.setScale(0.08656102262852836, 0.08656102262852836)
+    radio.setName('radio')
+    radio.setDepth(-1)
+    radio.setInteractive()
+    this.radioManager = new RadioManager(this, radio)
+  }
+
+  private setupEnemyManager() {
+    this.enemyManager = new EnemyManager(this)
+  }
+
+  private setupStoreManager() {
+    this.storeManager = new StoreManager(this)
+  }
+
+  private setupResearchLog() {
+    // Check if the research log image loaded successfully
+    if (this.textures.exists('researchlog')) {
+      // Create the research log image at the original position
+      this.researchLog = this.add.image(
+        this.researchLogOriginalPosition.x, 
+        this.researchLogOriginalPosition.y, 
+        'researchlog'
+      );
+
+    } else {
+      // Create a fallback colored rectangle if image failed to load
+      this.researchLog = this.add.rectangle(
+        this.researchLogOriginalPosition.x, 
+        this.researchLogOriginalPosition.y, 
+        200, 150, 
+        0x8B4513, 0.8
+      );
+
+    }
+    
+    // Set initial size and scale
+    this.researchLog.setDisplaySize(120, 90);
+    this.researchLog.setScale(this.researchLogOriginalPosition.scale);
+    this.researchLogScale = this.researchLogOriginalPosition.scale;
+    
+    // Make it interactive for hover and click effects
+    this.researchLog.setInteractive();
+    this.researchLog.setName('researchlog');
+    this.researchLog.setDepth(1000); // Higher depth to be in front of other objects
+    
+    // Start hover animation since it begins in small position
+    this.tweens.add({
+      targets: this.researchLog,
+      y: this.researchLog.y - 5, // Float up slightly
+      duration: 2000,
+      yoyo: true,
+      repeat: -1,
+      ease: 'Sine.easeInOut',
+      delay: Math.random() * 2000 // Random delay between 0-2000ms to desynchronize
+    });
+    
+    // Add hovering animation like bestiary (only when in small position)
+    this.researchLog.on('pointerover', () => {
+      this.researchLog.setScale(this.researchLogScale * 1.1); // Slight scale up on hover
+      this.researchLog.setTint(0xffffaa); // Light yellow tint on hover
+    });
+    
+    this.researchLog.on('pointerout', () => {
+      this.researchLog.setScale(this.researchLogScale); // Return to normal scale
+      this.researchLog.clearTint(); // Remove tint
+    });
+    
+    // Add click handler to toggle between positions
+    this.researchLog.on('pointerdown', () => {
+      if (this.researchLogIsExpanded) {
+        // Return to original position
+        this.researchLog.x = this.researchLogOriginalPosition.x;
+        this.researchLog.y = this.researchLogOriginalPosition.y;
+        this.researchLog.setScale(this.researchLogOriginalPosition.scale);
+        this.researchLogScale = this.researchLogOriginalPosition.scale;
+        this.researchLogIsExpanded = false;
+
+        
+        // Start hover animation when returning to small position
+        this.tweens.add({
+          targets: this.researchLog,
+          y: this.researchLog.y - 5, // Float up slightly from new position
+          duration: 2000,
+          yoyo: true,
+          repeat: -1,
+          ease: 'Sine.easeInOut',
+          delay: Math.random() * 2000 // Random delay to keep it desynchronized
+        });
+      } else {
+        // Move to expanded position
+        this.researchLog.x = this.researchLogExpandedPosition.x;
+        this.researchLog.y = this.researchLogExpandedPosition.y;
+        this.researchLog.setScale(this.researchLogExpandedPosition.scale);
+        this.researchLogScale = this.researchLogExpandedPosition.scale;
+        this.researchLogIsExpanded = true;
+
+        
+        // Stop hover animation when expanded
+        this.tweens.killTweensOf(this.researchLog);
+      }
+    });
+    
+    // Add mouse wheel event for resizing (only when expanded)
+    this.researchLog.on('wheel', (pointer: Phaser.Input.Pointer, deltaX: number, deltaY: number) => {
+      // Only allow resizing when expanded
+      if (this.researchLogIsExpanded) {
+        // Adjust scale based on wheel direction
+        const scaleChange = deltaY > 0 ? 0.05 : -0.05; // Smaller scale changes for precision
+        this.researchLogScale = Math.max(0.1, Math.min(1.0, this.researchLogScale + scaleChange));
+        
+        // Apply new scale
+        this.researchLog.setScale(this.researchLogScale);
+        
+        // Update expanded position scale
+        this.researchLogExpandedPosition.scale = this.researchLogScale;
+        
+        // Prevent event from bubbling to other wheel handlers
+        pointer.event.stopPropagation();
+      }
+    });
+    
+
+  }
+
+  private setupScoreImage() {
+    // Check if the score image loaded successfully
+    if (this.textures.exists('score')) {
+      // Create the score image at the permanent position
+      this.scoreImage = this.add.image(856.43, 36.30, 'score');
+
+    } else {
+      // Create a fallback colored rectangle if image failed to load
+      this.scoreImage = this.add.rectangle(856.43, 36.30, 80, 80, 0x00ff00, 0.8);
+
+    }
+    
+    // Set initial size and scale to match permanent position
+    this.scoreImage.setDisplaySize(80, 80);
+    this.scoreImage.setScale(0.1);
+    this.scoreImageScale = 0.1;
+    
+    // Set name and depth (no longer interactive)
+    this.scoreImage.setName('score');
+    this.scoreImage.setDepth(1000); // Higher depth to be in front of other objects
+    
+
+  }
+
+  private setupInteractiveMop() {
+    // Check if the mop image loaded successfully
+    if (!this.textures.exists('interactive_mop_asset')) {
+
+      return;
+    }
+    
+    // Create the mop sprite at permanent position
+    this.interactiveMop = this.add.sprite(236, 356, 'interactive_mop_asset');
+    this.interactiveMop.setDisplaySize(80, 80);
+    this.interactiveMop.setName('interactive_mop');
+    this.interactiveMop.setDepth(-100); // Very low depth so items appear in front of it
+    
+    // Apply permanent scale
+    this.interactiveMop.setScale(0.20);
+    
+    // Store permanent position and scale
+    this.interactiveMopOriginalX = 236;
+    this.interactiveMopOriginalY = 356;
+    this.interactiveMopScale = 0.20;
+    
+    // Make mop interactive for dragging
+    this.interactiveMop.setInteractive();
+    this.input.setDraggable(this.interactiveMop);
+    
+    // Track if mop is being dragged
+    this.isMopBeingDragged = false;
+    
+    // Handle drag start
+    this.input.on('dragstart', (pointer: Phaser.Input.Pointer, gameObject: Phaser.GameObjects.GameObject) => {
+      if (gameObject === this.interactiveMop) {
+        this.isMopBeingDragged = true;
+
+        // Bring mop to front when dragging so items appear behind it
+        this.interactiveMop.setDepth(1000);
+      }
+    });
+    
+    // Handle drag
+    this.input.on('drag', (pointer: Phaser.Input.Pointer, gameObject: Phaser.GameObjects.GameObject, dragX: number, dragY: number) => {
+      if (gameObject === this.interactiveMop) {
+        this.interactiveMop.x = dragX;
+        this.interactiveMop.y = dragY;
+      }
+    });
+    
+    // Handle drag end - start spring back animation
+    this.input.on('dragend', (pointer: Phaser.Input.Pointer, gameObject: Phaser.GameObjects.GameObject) => {
+      if (gameObject === this.interactiveMop) {
+        this.isMopBeingDragged = false;
+
+        // Disable mop interaction while springing back
+        this.interactiveMop.disableInteractive();
+        this.springMopBack();
+      }
+    });
+    
+
+
+  }
+  
+  private springMopBack() {
+    // Create a smooth spring-back animation to original position
+    this.tweens.add({
+      targets: this.interactiveMop,
+      x: this.interactiveMopOriginalX,
+      y: this.interactiveMopOriginalY,
+      duration: 1000, // 1 second spring back
+      ease: 'Back.easeOut', // Bouncy spring effect
+              onComplete: () => {
+
+          // Re-enable mop interaction after springing back
+          this.interactiveMop.setInteractive();
+          this.input.setDraggable(this.interactiveMop);
+          // Reset mop depth so items appear in front of it again
+          this.interactiveMop.setDepth(-100);
+        }
+      });
+    }
+  
+  private checkMopGooCleaning() {
+    if (!this.interactiveMop || !this.interactiveMop.active) return;
+    
+    // Get all goo splatters in the scene (same as existing mop system)
+    const gooSplatters = (this as any).gooSplatters || [];
+    
+    gooSplatters.forEach((splatter: Phaser.GameObjects.Sprite) => {
+      if (!splatter.active) return;
+      
+      // Check if mop is overlapping with splatter using distance-based detection for small mop
+      const distance = Phaser.Math.Distance.Between(
+        this.interactiveMop.x, 
+        this.interactiveMop.y, 
+        splatter.x, 
+        splatter.y
+      );
+      
+      // Use a reasonable detection radius (40 pixels) for the small mop
+      if (distance < 40) {
+        // Check if this splatter was recently cleaned (prevent rapid cleaning)
+        const currentTime = this.time.now;
+        const lastCleanTime = (splatter as any).lastCleanTime || 0;
+        
+        if (currentTime - lastCleanTime > 500) { // 500ms cooldown between cleans
+          this.cleanSplatterWithMop(splatter);
+          (splatter as any).lastCleanTime = currentTime;
+        }
+      }
+    });
+  }
+  
+  private cleanSplatterWithMop(splatter: Phaser.GameObjects.Sprite) {
+    // Increment cleanup count (same as existing mop system)
+    (splatter as any).cleanupCount = ((splatter as any).cleanupCount || 0) + 1;
+    
+    // Calculate new alpha (reduce by 25% each time)
+    const originalAlpha = (splatter as any).originalAlpha || 0.8;
+    const cleanupCount = (splatter as any).cleanupCount;
+    const maxCleanups = (splatter as any).maxCleanups || 3;
+    
+    if (cleanupCount >= maxCleanups) {
+      // Remove splatter completely after 3rd swipe
+      this.removeSplatterWithMop(splatter);
+    } else {
+      // Reduce opacity by 25%
+      const newAlpha = originalAlpha * (1 - (cleanupCount * 0.25));
+      
+      // Animate the cleaning effect
+      this.tweens.add({
+        targets: splatter,
+        alpha: newAlpha,
+        scaleX: splatter.scaleX * 0.95, // Slightly shrink
+        scaleY: splatter.scaleY * 0.95,
+        duration: 200,
+        ease: 'Power2.easeOut',
+        onComplete: () => {
+          // Add sparkle effect to show cleaning
+          this.createCleaningSparkle(splatter.x, splatter.y);
+        }
+      });
+    }
+  }
+  
+  private removeSplatterWithMop(splatter: Phaser.GameObjects.Sprite) {
+    // Create final cleaning effect
+    this.createCleaningSparkle(splatter.x, splatter.y);
+    
+    // Collect goo when splatter is completely removed (same as existing mop)
+    const { collectGooFromCleaning } = require('../objects/GooCounter');
+    collectGooFromCleaning();
+    
+    // Animate removal
+    this.tweens.add({
+      targets: splatter,
+      alpha: 0,
+      scaleX: 0,
+      scaleY: 0,
+      duration: 300,
+      ease: 'Power2.easeIn',
+      onComplete: () => {
+        // Remove from splatters array
+        const gooSplatters = (this as any).gooSplatters || [];
+        const index = gooSplatters.indexOf(splatter);
+        if (index > -1) {
+          gooSplatters.splice(index, 1);
+        }
+        
+        // Destroy the splatter
+        splatter.destroy();
+      }
+    });
+  }
+  
+  private createCleaningSparkle(x: number, y: number) {
+    // Create small sparkle particles to show cleaning effect (same as existing mop)
+    const sparkleCount = 3;
+    
+    for (let i = 0; i < sparkleCount; i++) {
+      // Create a small white circle as sparkle
+      const sparkle = this.add.circle(
+        x + Phaser.Math.Between(-20, 20),
+        y + Phaser.Math.Between(-20, 20),
+        3,
+        0xffffff
+      );
+      
+      sparkle.setDepth(100); // Above most objects
+      
+      // Animate sparkle
+      this.tweens.add({
+        targets: sparkle,
+        alpha: 0,
+        scaleX: 2,
+        scaleY: 2,
+        duration: 500,
+        ease: 'Power2.easeOut',
+        onComplete: () => {
+          sparkle.destroy();
+        }
+      });
+    }
+  }
+  
+
+
+  update() {
+    if (!(this as any).mergeCore) {
+    }
+
+    let operationCount = 0;
+    const maxOperationsPerFrame = 50;
+
+    this.children.list.forEach(child => {
+      operationCount++;
+      if (operationCount > maxOperationsPerFrame) return;
+
+      if ((child as any).pendingDestroy && child.active) {
+        child.destroy();
+      }
+
+      if ((child as any).itemName && child.active) {
+        const body = (child as any).body;
+        if (body && (isNaN(body.velocity.x) || isNaN(body.velocity.y))) {
+          body.setVelocity(0, 0);
+        }
+      }
+    });
+
+    if (this.enemyManager) {
+      this.enemyManager.updateEnemies();
+      if ((this.enemyManager as any).checkEnemyHazardCollisions) {
+        (this.enemyManager as any).checkEnemyHazardCollisions();
+      }
+    }
+    
+    // Check if mop is cleaning goo
+    this.checkMopGooCleaning();
+  }
+
+  private checkEnemyHazardCollisions() {
+    const enemies: any[] = [];
+    const hazards: any[] = [];
+    
+    // Import the hazard detection function
+    const { isHazard } = require('../config/mergeDataFull');
+    
+    // Collect all enemies and hazards with more comprehensive detection
+    this.children.list.forEach(child => {
+      if ((child as any).itemName && child.active) {
+        const itemName = (child as any).itemName;
+        
+        // Enhanced enemy detection - check for all possible enemy types
+        if (itemName.startsWith("Enemy:") || 
+            itemName === "Unstable Goo" || 
+            itemName === "Confetti Storm" || 
+            itemName === "Enemy: Goo Tornado" ||
+            (child as any).isUnstableGoo ||
+            (child as any).isConfettiStorm ||
+            (child as any).isGooTornado) {
+          enemies.push(child);
+        } 
+        // Use the improved hazard detection function
+        else if (isHazard(itemName)) {
+          hazards.push(child);
+        }
+      }
+    });
+    
+    // Only log when we actually find enemies and hazards
+    if (enemies.length > 0 && hazards.length > 0) {
+
+    }
+    
+    // Check collisions between enemies and hazards
+    enemies.forEach(enemy => {
+      if (!enemy.active || (enemy as any).isBeingDestroyed) return;
+      
+      hazards.forEach(hazard => {
+        if (!hazard.active || (hazard as any).isBeingDestroyed) return;
+        
+        // Check if enemy and hazard are overlapping
+        if (this.areObjectsOverlapping(enemy, hazard)) {
+          // Collision detected
+          this.handleEnemyHazardCollision(enemy, hazard);
+        }
+      });
+    });
+  }
+
+  private areObjectsOverlapping(obj1: any, obj2: any): boolean {
+    // Use multiple methods to check for overlap to ensure reliability
+    
+    // Method 1: Check if objects are close enough (distance-based)
+    const distance = Phaser.Math.Distance.Between(obj1.x, obj1.y, obj2.x, obj2.y);
+    const minDistance = 40; // Minimum distance for collision (adjust as needed)
+    
+    if (distance > minDistance) {
+      return false; // Too far apart, definitely not overlapping
+    }
+    
+    // Method 2: Use getBounds if available
+    try {
+      const bounds1 = obj1.getBounds();
+      const bounds2 = obj2.getBounds();
+      
+      if (bounds1 && bounds2) {
+        return Phaser.Geom.Rectangle.Overlaps(bounds1, bounds2);
+      }
+    } catch (error) {
+
+    }
+    
+    // Method 3: Fallback - simple radius-based collision
+    const obj1Size = Math.max(obj1.displayWidth || obj1.width || 36, obj1.displayHeight || obj1.height || 36) / 2;
+    const obj2Size = Math.max(obj2.displayWidth || obj2.width || 36, obj2.displayHeight || obj2.height || 36) / 2;
+    const combinedRadius = obj1Size + obj2Size;
+    
+    return distance < combinedRadius * 0.7; // 70% overlap threshold
+  }
+
+  private handleEnemyHazardCollision(enemy: any, hazard: any) {
+    // Prevent multiple collision handling for the same objects
+    if ((enemy as any).isBeingDestroyed || (hazard as any).isBeingDestroyed) {
+      return;
+    }
+    
+    // Mark objects as being destroyed to prevent multiple collisions
+    (enemy as any).isBeingDestroyed = true;
+    (hazard as any).isBeingDestroyed = true;
+    
+
+    
+    // IMMEDIATELY stop any ongoing dissolve processes for the enemy
+    if ((enemy as any).isDissolving) {
+      (enemy as any).isDissolving = false;
+      if ((enemy as any).dissolveTimer) {
+        (enemy as any).dissolveTimer.destroy();
+        (enemy as any).dissolveTimer = null;
+      }
+    }
+    
+    // IMMEDIATELY stop any timers and movement for the enemy
+    if ((enemy as any).spawnTimer) {
+      (enemy as any).spawnTimer.destroy();
+      (enemy as any).spawnTimer = null;
+    }
+    if ((enemy as any).stopTimer) {
+      (enemy as any).stopTimer.destroy();
+      (enemy as any).stopTimer = null;
+    }
+    
+    // Stop enemy movement immediately
+    const enemyBody = enemy.body as Phaser.Physics.Arcade.Body;
+    if (enemyBody) {
+      enemyBody.setVelocity(0, 0);
+    }
+    
+    // Get positions for splatter creation
+    const enemyX = enemy.x;
+    const enemyY = enemy.y;
+    const enemyScale = enemy.scaleX;
+    
+    const hazardx = hazard.x;
+    const hazardY = hazard.y;
+    const hazardScale = hazard.scaleX;
+    
+    // Create goo splatters at both positions
+    this.enemyManager.createGooSplatterAt(enemyX, enemyY, enemyScale);
+    this.enemyManager.createGooSplatterAt(hazardx, hazardY, hazardScale);
+    
+    // Play destruction sound
+    const oozesplatSound = this.sound.add('oozesplat', { volume: 0.8 });
+    oozesplatSound.play();
+    
+    // Destroy both objects with visual effects IMMEDIATELY
+    this.destroyObjectWithEffect(enemy);
+    this.destroyObjectWithEffect(hazard);
+  }
+
+
+
+  private destroyObjectWithEffect(obj: any) {
+    // Mark as being destroyed to prevent any other processes from interfering
+    (obj as any).isBeingDestroyed = true;
+    
+    // IMMEDIATELY stop any existing tweens on the object
+    this.tweens.killTweensOf(obj);
+    
+    // IMMEDIATELY stop any timers associated with the object
+    if ((obj as any).spawnTimer) {
+      (obj as any).spawnTimer.destroy();
+      (obj as any).spawnTimer = null;
+    }
+    if ((obj as any).dissolveTimer) {
+      (obj as any).dissolveTimer.destroy();
+      (obj as any).dissolveTimer = null;
+    }
+    if ((obj as any).stopTimer) {
+      (obj as any).stopTimer.destroy();
+      (obj as any).stopTimer = null;
+    }
+    
+    // IMMEDIATELY stop any sounds associated with the object
+    if ((obj as any).spawnSound && (obj as any).spawnSound.isPlaying) {
+      (obj as any).spawnSound.stop();
+      (obj as any).spawnSound.destroy();
+    }
+    
+    // IMMEDIATELY stop any physics movement
+    const body = obj.body as Phaser.Physics.Arcade.Body;
+    if (body) {
+      body.setVelocity(0, 0);
+    }
+    
+    // Set flags to prevent any other systems from processing this object
+    (obj as any).isDissolving = false;
+    (obj as any).isStopped = true;
+    (obj as any).isActive = false;
+    
+    // Death animation - shrink and fade with spin
+    this.tweens.add({
+      targets: obj,
+      scaleX: 0,
+      scaleY: 0,
+      alpha: 0,
+      angle: obj.angle + 360, // Full spin while shrinking
+      duration: 500,
+      ease: 'Power2.easeIn',
+      onComplete: () => {
+        if (obj.active) {
+          // Get merge system to properly destroy the object
+          const merge = this.getMergeSystem();
+          if (merge && merge.items) {
+            merge.items.destroy(obj);
+          } else {
+            obj.destroy();
+          }
+        }
+      }
+    });
+    
+    // Visual effect - flash effect to indicate destruction
+    this.tweens.add({
+      targets: obj,
+      tint: 0xffffff, // White flash
+      duration: 100,
+      yoyo: true,
+      repeat: 2
+    });
+  }
+
+  public destroy() {
+    if (this.gooCounter) {
+      this.gooCounter.destroy()
+    }
+    if (this.trashRecyclerManager) {
+      this.trashRecyclerManager.destroy()
+    }
+    if (this.enemyManager) {
+      this.enemyManager.destroy()
+    }
+    if (this.sceneManager) {
+      this.sceneManager.destroyCursor()
+    }
+    if (this.boxSpawner) {
+      this.boxSpawner.destroy()
+    }
+    if ((this as any).mergeSystem) {
+      (this as any).mergeSystem.destroy?.()
+    }
+    if (this.toiletSound) {
+      this.toiletSound.destroy()
+    }
+    if (this.plungerSound) {
+      this.plungerSound.destroy()
+    }
+    if (this.faucetSound) {
+      this.faucetSound.destroy()
+    }
+    if (this.sinkShakeTween) {
+      this.sinkShakeTween.destroy()
+    }
+    if (this.toiletPaperBlinkTimer) {
+      this.toiletPaperBlinkTimer.destroy()
+    }
+    if (this.toiletPaperFlushTimer) {
+      this.toiletPaperFlushTimer.destroy()
+    }
+    if (this.physics.world) {
+      this.physics.world.destroy()
+    }
+    if (this.sys.events) {
+      this.sys.events.off('wake')
+      this.sys.events.off('resume')
+    }
+    if (this.input) {
+      this.input.off('pointermove')
+      this.input.off('pointerdown')
+      this.input.off('pointerup');
+    }
+
+    if (this.time) {
+      this.time.events.off('destroy')
+    }
+    if (this.tweens) {
+      this.tweens.events.off('destroy');
+    }
+    if (this.anims) {
+      this.anims.events.off('destroy')
+    }
+    if (this.scene) {
+      this.scene.events.off('destroy')
+    }
+    if (this.game) {
+      this.game.events.off('destroy')
+    }
+
+    this.toilet = null
+    this.plunger = null
+    this.plungerOriginalX = 0
+    this.plungerOriginalY = 0
+    this.plungerVibrateTimer = null as any
+    this.boxSpawner = null as any
+    this.customCursor = null as any
+    this.isPointerDown = false
+    this.hintButton = null as any
+    ;(this as any).mergeSystem = null
+    this.toiletSound = null as any
+    this.plungerSound = null as any
+    this.toiletPaperBg = null as any
+    this.toiletPaperBlinkTimer = null as any
+    this.toiletPaperFlushTimer = null as any
+    this.researchLog = null as any
+    this.scoreImage = null as any
+
+    if (this.radioManager) {
+      this.radioManager.destroy()
+    }
+    if (this.storeManager) {
+      this.storeManager.destroy()
+    }
+    if (this.recyclerCooldownTimer) {
+      this.recyclerCooldownTimer.destroy()
+    }
+
+    super.destroy()
+  }
+
+  private saveGameState() {
+    try {
+      const gameState = {
+        tutorialCompleted: !this.tutorialPhase,
+        portalCreated: this.portalCreated,
+        flushCount: this.FlushCount,
+        items: this.getAllItemsState(),
+        storeItems: this.getStoreItemsState(),
+        gooCount: this.gooCounter ? this.gooCounter.getGooCount() : 0,
+        // Add portal state information
+        portalExists: this.portalCreated && !!this.children.getByName('portal'),
+        portalPosition: this.portalCreated ? { x: 564.96, y: 52.41 } : null,
+        timestamp: Date.now(),
+        version: "1.0"
+      };
+
+      localStorage.setItem('toilet_merge_game_state', JSON.stringify(gameState));
+
+      
+      // Show brief save notification
+      this.showSaveNotification();
+    } catch (error) {
+
+    }
+  }
+
+  private loadGameState() {
+    // Only load if we're explicitly continuing a saved game
+    const saveGameChoice = this.registry.get('saveGameChoice');
+    if (saveGameChoice !== 'continue') {
+
+      return false;
+    }
+
+    try {
+      const savedState = localStorage.getItem('toilet_merge_game_state');
+      if (!savedState) {
+
+        return false;
+      }
+
+      const gameState = JSON.parse(savedState);
+
+      
+      // Validate save data structure
+      if (!gameState.version || !gameState.hasOwnProperty('tutorialCompleted')) {
+
+        return false;
+      }
+
+      // Restore tutorial state
+      this.tutorialPhase = !gameState.tutorialCompleted;
+      this.portalCreated = gameState.portalCreated || false;
+      this.FlushCount = gameState.flushCount || 0;
+
+      // Check if portal should exist based on save data
+      const shouldHavePortal = gameState.portalExists !== undefined ? gameState.portalExists : gameState.portalCreated;
+
+
+
+      // Update toilet sprite to match loaded flush count
+      this.updateToiletSprite();
+
+      // Restore goo count if available
+      if (gameState.gooCount !== undefined && this.gooCounter) {
+        this.gooCounter.setGooCount(gameState.gooCount);
+      }
+
+      // If tutorial is completed and portal should exist, mark for creation
+      if (gameState.tutorialCompleted && shouldHavePortal) {
+        // Ensure tutorial phase is false and portal should be created
+        this.tutorialPhase = false;
+        this.portalCreated = true; // Mark that portal should exist
+      }
+
+      // Restore store items first (before regular items)
+      if (gameState.storeItems && gameState.storeItems.length > 0) {
+
+        this.time.delayedCall(1000, () => {
+          this.restoreStoreItemsFromSave(gameState.storeItems);
+        });
+      }
+
+      // Restore items after a short delay to ensure scene is fully initialized
+      if (gameState.items && gameState.items.length > 0) {
+
+        this.time.delayedCall(1500, () => {
+          this.restoreItemsFromSave(gameState.items);
+        });
+      }
+
+      // Emit event that a saved game was loaded - delay it to ensure hint button is ready
+      this.time.delayedCall(2000, () => {
+        this.events.emit('game:savedGameLoaded');
+      });
+
+
+      return true;
+    } catch (error) {
+
+      return false;
+    }
+  }
+
+  private getAllItemsState(): Array<{name: string, x: number, y: number, scale: number}> {
+    const itemsState: Array<{name: string, x: number, y: number, scale: number}> = [];
+    
+    // Get all items from the scene that have itemName property
+    this.children.list.forEach(child => {
+      if ((child as any).itemName && child.active) {
+        const item = child as any;
+        // Include ALL items with itemName, including enemies (they'll be handled by EnemyManager on restore)
+        itemsState.push({
+          name: item.itemName,
+          x: item.x,
+          y: item.y,
+          scale: item.scaleX // Assuming uniform scaling
+        });
+      }
+    });
+    
+    return itemsState;
+  }
+
+  private getStoreItemsState(): Array<{name: string, purchased: boolean, visible: boolean}> {
+    const storeItemsState: Array<{name: string, purchased: boolean, visible: boolean}> = [];
+    
+    // Check if trash recycler is purchased/visible
+    if (this.trashRecycler) {
+      storeItemsState.push({
+        name: 'trash_recycler',
+        purchased: this.trashRecycler.active && this.trashRecycler.visible,
+        visible: this.trashRecycler.visible
+      });
+    }
+    
+    // Add other store items here as they're implemented
+    // Example: radio, goomba, etc.
+    
+    return storeItemsState;
+  }
+
+  private restoreStoreItemsFromSave(storeItemsData: Array<{name: string, purchased: boolean, visible: boolean}>) {
+    storeItemsData.forEach(storeItem => {
+      try {
+        if (storeItem.name === 'trash_recycler' && storeItem.purchased) {
+          // Restore trash recycler to purchased state
+          if (this.trashRecycler) {
+            // If recycler is inside a scaled container, remove it and add to scene root
+            if (this.trashRecycler.parentContainer) {
+              this.trashRecycler.parentContainer.remove(this.trashRecycler);
+              this.add.existing(this.trashRecycler);
+            }
+            
+            // Restore original scale before showing
+            const orig = this.trashRecycler.getData('__origScale');
+            if (orig) {
+              this.trashRecycler.setScale(orig.x, orig.y);
+            }
+            
+            // Show the recycler
+            this.trashRecycler.setActive(true).setVisible(storeItem.visible);
+            
+
+          }
+        }
+        
+        // Add other store items restoration here
+        
+      } catch (error) {
+
+      }
+    });
+  }
+
+  private restoreItemsFromSave(itemsData: Array<{name: string, x: number, y: number, scale: number}>) {
+    const merge = this.getMergeSystem();
+    if (!merge) {
+
+      return;
+    }
+
+    // ... keep existing clearing code ...
+
+    const portalX = 564.96;
+    const portalY = 52.41;
+    const portalTolerance = 10;
+
+    const toiletY = this.toilet ? this.toilet.y : 380.70;
+
+    let restoredCount = 0;
+    let enemyCount = 0;
+
+    itemsData.forEach((itemData, index) => {
+      try {
+        // ... enemy handling unchanged ...
+
+        let restoredItem = merge.items.spawn(itemData.name as any, itemData.x, itemData.y);
+
+        if (!restoredItem) {
+          // ... fallback creation unchanged ...
+        }
+        
+        if (restoredItem) {
+          // Restore scale if different from default
+          if (itemData.scale && itemData.scale !== 1) {
+            restoredItem.setScale(itemData.scale);
+          }
+
+          // Always consider floor settling after a tiny delay to ensure body exists
+          this.time.delayedCall(100, () => {
+            // Check if item ended up at portal location (regardless of intended position)
+            const distanceFromPortal = Phaser.Math.Distance.Between(
+              restoredItem.x, restoredItem.y, 
+              portalX, portalY
+            );
+
+            if (distanceFromPortal <= portalTolerance || restoredItem.y < (473 - 18 - 20)) {
+              if ((merge.items as any).makeItemFallToFloor) {
+                (merge.items as any).makeItemFallToFloor(restoredItem);
+              }
+            }
+          });
+          
+          restoredCount++;
+        } else {
+
+        }
+      } catch (error) {
+
+      }
+    });
+
+
+  }
+
+  private createPortalFromSave() {
+    // Check if portal already exists to avoid duplicates
+    const existingPortal = this.children.getByName('portal');
+    if (existingPortal) {
+
+      this.setupPortalInMergeSystem(existingPortal as Phaser.GameObjects.Sprite);
+      return;
+    }
+    
+
+    this.portalCreated = true;
+    
+    // Create portal animation - same as tutorial but without the growing animation
+    const forwardFrames = []
+    const backwardFrames = []
+    
+    // Add forward frames (0-33, skipping the last 2 blank frames)
+    for (let i = 0; i < 34; i++) {
+      forwardFrames.push({ key: 'portal', frame: i })
+    }
+    
+    // Add backward frames (32-1) to avoid duplicating frame 33 and frame 0
+    for (let i = 32; i >= 1; i--) {
+      backwardFrames.push({ key: 'portal', frame: i })
+    }
+    
+    // Only create animation if it doesn't exist
+    if (!this.anims.exists('portalAnim')) {
+      this.anims.create({
+        key: 'portalAnim',
+        frames: [...forwardFrames, ...backwardFrames],
+        frameRate: 12,
+        repeat: -1 // Loop infinitely
+      })
+    }
+
+    // Create the portal sprite at full size (no growing animation)
+    const portal = this.add.sprite(564.96, 52.41, 'portal')
+    portal.setDisplaySize(600, 200)
+    portal.setFlipY(true)
+    portal.setName('portal')
+    portal.setDepth(-2) // Set lower depth so droppable items appear in front
+    portal.play('portalAnim')
+
+
+
+    // Set up portal in merge system immediately
+    this.setupPortalInMergeSystem(portal);
+    
+    // Start normal spawning with a longer delay to ensure all saved items are loaded first
+    this.time.delayedCall(3000, () => { // Increased from 2000ms to 3000ms for more safety
+      const merge = this.getMergeSystem();
+      if (merge && merge.spawner) {
+        merge.spawner.start(5000);
+
+      } else {
+
+        // Retry after another delay
+        this.time.delayedCall(2000, () => {
+          const retryMerge = this.getMergeSystem();
+          if (retryMerge && retryMerge.spawner) {
+            retryMerge.spawner.start(5000);
+            // Portal spawning started for loaded game (retry)
+          }
+        });
+      }
+    });
+  }
+
+  private showSaveNotification() {
+    if (!this.sceneManager) return
+    this.sceneManager.showSaveNotification()
+  }
+
+  private handleItemDrop(item: any) {
+    // Check if item was dropped from above the toilet's center Y position
+    const toiletCenterY = this.toilet.y;
+    const dropY = item.y;
+
+    // Define toilet merge zone bounds (matches MergeToilet zone: w=140, h=140, centered on toilet)
+    const toiletZone = {
+      x: this.toilet.x,
+      y: this.toilet.y,
+      w: 140,
+      h: 140
+    };
+
+    // Correct bounds check against zone width/height
+    const isInToiletZone = (
+      item.x >= toiletZone.x - toiletZone.w / 2 &&
+      item.x <= toiletZone.x + toiletZone.w / 2 &&
+      item.y >= toiletZone.y - toiletZone.h / 2 &&
+      item.y <= toiletZone.y + toiletZone.h / 2
+    );
+
+    // If item is dropped in toilet zone, do not make it fall to the floor.
+    // Additionally, if tutorial is complete and the item is Battery or Loose Wires, kill any pulsing.
+    if (isInToiletZone) {
+      if (!this.tutorialPhase && item.itemName && (item.itemName === 'Battery' || item.itemName === 'Loose Wires')) {
+        this.tweens.killTweensOf(item);
+      }
+      return;
+    }
+
+    // If dropped from above toilet center and NOT in toilet zone, make it fall to floor
+    if (dropY < toiletCenterY) {
+      const merge = this.getMergeSystem();
+      if (merge && merge.items && (merge.items as any).makeItemFallToFloor) {
+        (merge.items as any).makeItemFallToFloor(item);
+      }
+    }
+  }
+
+  private makeItemFallToFloor(item: any) {
+    // Calculate floor position (same as portal spawning logic)
+    const floorY = 473 - 18; // Floor platform top minus half item height
+    
+    // Don't apply physics if item is already near the floor
+    if (Math.abs(item.y - floorY) < 20) {
+      return;
+    }
+    
+    // Create falling animation similar to portal spawning
+    const fallDuration = Math.max(300, Math.abs(item.y - floorY) * 2); // Minimum 300ms, scale with distance
+    
+    // Add slight horizontal drift during fall
+    const horizontalDrift = Phaser.Math.Between(-20, 20);
+    const targetX = Math.max(100, Math.min(1000, item.x + horizontalDrift)); // Keep within bounds
+    
+    // Animate fall with physics-like easing
+    this.tweens.add({
+      targets: item,
+      x: targetX,
+      y: floorY,
+      duration: fallDuration,
+      ease: 'Power2.easeIn', // Gravity-like acceleration
+      onComplete: () => {
+        // Add small bounce effect when hitting floor
+        this.tweens.add({
+          targets: item,
+          y: floorY - 10, // Small bounce up
+          duration: 150,
+          ease: 'Power2.easeOut',
+          onComplete: () => {
+            // Settle back to floor
+            this.tweens.add({
+              targets: item,
+              y: floorY,
+              duration: 100,
+              ease: 'Power2.easeIn'
+            });
+          }
+        });
+      }
+    });
+    
+    // Add rotation during fall for more natural physics
+    const rotationAmount = Phaser.Math.Between(90, 270);
+    const rotationDirection = Phaser.Math.RND.pick([-1, 1]);
+    
+    this.tweens.add({
+      targets: item,
+      angle: item.angle + (rotationAmount * rotationDirection),
+      duration: fallDuration + 250, // Slightly longer than fall for natural effect
+      ease: 'Power1.easeOut'
+    });
+  }
+
+  private setupTrashRecycler() {
+    // Create the trash recycler sprite at the specified fixed position
+    this.trashRecycler = this.add.sprite(411, 384, 'trash_recycler')
+    this.trashRecycler.setDisplaySize(180, 180) // Fixed size
+    this.trashRecycler.setName('trash_recycler')
+    this.trashRecycler.setDepth(-1) // Set lower depth so droppable items appear in front
+    
+    // Store original scale for later restoration
+    this.trashRecycler.setData('__origScale', { x: this.trashRecycler.scaleX, y: this.trashRecycler.scaleY })
+    
+    // Hide the recycler by default - it will only be shown when purchased from store
+    this.trashRecycler.setActive(false).setVisible(false)
+    
+    // Make recycler interactive for clicking - but only when visible/purchased
+    this.trashRecycler.setInteractive()
+    this.trashRecycler.on('pointerdown', () => {
+      // Only function if recycler is visible (purchased)
+      if (!this.trashRecycler.visible) {
+        return;
+      }
+      
+      // Check cooldown
+      const currentTime = this.time.now;
+      const timeSinceLastUse = currentTime - this.recyclerLastUsed;
+      
+      if (timeSinceLastUse < this.RECYCLER_COOLDOWN) {
+        // Show cooldown message via TrashRecycler manager
+        const remainingTime = Math.ceil((this.RECYCLER_COOLDOWN - timeSinceLastUse) / 1000);
+        if (this.trashRecyclerManager && (this.trashRecyclerManager as any).showCooldownMessage) {
+          (this.trashRecyclerManager as any).showCooldownMessage(remainingTime);
+        }
+        return;
+      }
+      
+      // Check if recycler has 2 items and play sound
+      if (this.trashRecyclerManager && this.trashRecyclerManager.getItemCount() === 2) {
+        // Record the use time
+        this.recyclerLastUsed = currentTime;
+        
+        const recSound = this.sound.add('recsound', { volume: 0.2 })
+        recSound.play()
+        
+        // Launch recycling minigame when clicked
+        this.trashRecyclerManager.recycleItems();
+        
+        // Note: The minigame will handle success/failure and spawn goo jar only on completion
+      }
+    })
+  }
+
+
+
+  public getEnemyManager(): EnemyManager {
+    return this.enemyManager
+  }
+
+  public getGooCounter(): any {
+    return this.gooCounter
+  }
+
+  private rejectItem(obj: LabeledRect) {
+    // remove: toilet no longer rejects or bounces items
+  }
+
+  private closeStore() {
+    // Exit all modes when closing
+    if ((this as any).isDeleteMode) {
+      this.toggleDeleteMode();
+    }
+    if ((this as any).isRenameMode) {
+      this.toggleRenameMode();
+    }
+
+    // Stop store audio when closing store - get it from goo counter
+    const gameScene = this.scene as any;
+    if (gameScene.gooCounter && gameScene.gooCounter.getCurrentStoreSound) {
+      const storeSound = gameScene.gooCounter.getCurrentStoreSound();
+      if (storeSound && storeSound.isPlaying) {
+        storeSound.stop();
+      }
+    }
+
+    // Resume radio if it was paused by store opening
+    if (gameScene.gooCounter && gameScene.gooCounter.wasRadioPausedByStore()) {
+      if (gameScene.radioManager) {
+        const radioManager = gameScene.radiomanager;
+        if (radioManager.isPowered() && radioManager.getCurrentMusic) {
+          const currentMusic = radioManager.getCurrentMusic();
+          if (currentMusic && currentMusic.isPaused) {
+            currentMusic.resume();
+          }
+        }
+      }
+      // Clear the flag after resuming
+      gameScene.gooCounter.clearRadioPauseFlag();
+    }
+
+    // Hide UI when closing store
+    this.isUIVisible = false;
+    this.controlsContainer.setVisible(false);
+    
+    // Show the bestiary book when store closes - fix typo
+    const bestiaryScene = this.scene.scene.get('Bestiary') as any;
+    if (bestiaryScene && bestiaryScene.bookClosed) {
+      bestiaryScene.bookClosed.setVisible(true);
+    }
+    
+    // When closing store, keep asset-based items visible but hide placeholder rectangles
+    this.placedItems.forEach(item => {
+      const hasAsset = this.itemHasAsset(item.itemName);
+      
+      if (hasAsset) {
+        // Items with assets should remain visible even when store is closed
+        item.container.setVisible(true);
+      } else {
+        // Items without assets get hidden when store closes
+        item.container.setVisible(false);
+      }
+    });
+
+    this.scene.tweens.add({
+      targets: this.storeContainer,
+      alpha: 0,
+      duration: 300,
+      ease: 'Power2',
+      onComplete: () => {
+        this.isStoreOpen = false;
+        this.storeContainer.setVisible(false);
+      }
+    });
+  }
+
+  private showRecyclerCooldownMessage(remainingSeconds: number) {
+    // removed: moved to TrashRecycler.showCooldownMessage
+  }
+
+  private showRecyclerSuccessMessage() {
+    // removed: moved to TrashRecycler.showSuccessMessage
+  }
+}
