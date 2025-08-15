@@ -69,6 +69,7 @@ export class Game extends Scene {
   private alientubeTargetScale: number = 0.20
   private alientubePortalY: number = -100 // Portal is above top of screen (completely hidden)
   private isAlientubeEmerging: boolean = false
+  private vacuumSound?: Phaser.Sound.BaseSound // Store reference to looping vacuum sound
   
   // Occluder properties
   private occluder!: Phaser.GameObjects.Graphics
@@ -1561,6 +1562,23 @@ export class Game extends Scene {
     if (this.alientube && !this.isAlientubeEmerging) {
       this.isAlientubeEmerging = true;
       
+      // Get tube sound duration and play it
+      let animationDuration = 3000; // Default fallback duration
+      if (this.cache.audio.exists('tubesound')) {
+        const tubeSound = this.sound.add('tubesound', { volume: 0.6 });
+        tubeSound.play();
+        
+        // Get the audio duration and convert to milliseconds, but make it faster
+        if (tubeSound.totalDuration) {
+          const audioDuration = tubeSound.totalDuration * 1000;
+          // Make animation 1.5x faster than audio duration, with a minimum of 1500ms
+          animationDuration = Math.max(1500, audioDuration * 0.67);
+          console.log(`Tube emergence: Audio duration ${audioDuration}ms, animation duration ${animationDuration}ms (1.5x faster)`);
+        }
+      } else {
+        console.warn('Tube sound not found in cache, using default animation duration');
+      }
+      
       // Reset alientube to portal position
       this.alientube.setPosition(this.alientubeTargetX, this.alientubePortalY);
       this.alientube.setScale(this.alientubeTargetScale);
@@ -1571,11 +1589,11 @@ export class Game extends Scene {
         this.centerBox.setPosition(this.alientube.x + 29, this.alientube.y + 91);
       }
       
-      // Create the emerging animation - slowly lower from portal to target position
+      // Create the emerging animation - duration synchronized with audio
       this.tweens.add({
         targets: this.alientube,
         y: this.alientubeTargetY,
-        duration: 3000, // 3 seconds for smooth emergence
+        duration: animationDuration,
         ease: 'Power2.easeOut',
         onComplete: () => {
           this.isAlientubeEmerging = false;
@@ -1584,6 +1602,18 @@ export class Game extends Scene {
             this.centerBox.setPosition(this.alientube.x + 29, this.alientube.y + 91);
           }
           console.log('Alientube has emerged from portal!');
+          
+          // Play vacuum sound when tube is fully extended - loop until retracted
+          if (this.cache.audio.exists('vacuum')) {
+            this.vacuumSound = this.sound.add('vacuum', { 
+              volume: 0.6,
+              loop: true // Loop continuously
+            });
+            this.vacuumSound.play();
+            console.log('Playing looping vacuum sound - tube is fully extended');
+          } else {
+            console.warn('Vacuum sound not found in cache');
+          }
         }
       });
     }
@@ -1593,20 +1623,55 @@ export class Game extends Scene {
     if (this.alientube && !this.isAlientubeEmerging) {
       this.isAlientubeEmerging = true;
       
+      // Stop the looping vacuum sound when retracting
+      this.stopVacuumSound();
+      
+      // Get tube sound duration and play it
+      
+      // Get tube sound duration and play it
+      let animationDuration = 2000; // Default fallback duration
+      if (this.cache.audio.exists('tubesound')) {
+        const tubeSound = this.sound.add('tubesound', { volume: 0.6 });
+        tubeSound.play();
+        
+        // Get the audio duration and convert to milliseconds, but make it faster
+        if (tubeSound.totalDuration) {
+          const audioDuration = tubeSound.totalDuration * 1000;
+          // Make animation 1.5x faster than audio duration, with a minimum of 1000ms
+          animationDuration = Math.max(1000, audioDuration * 0.67);
+          console.log(`Tube retraction: Audio duration ${audioDuration}ms, animation duration ${animationDuration}ms (1.5x faster)`);
+        }
+      } else {
+        console.warn('Tube sound not found in cache, using default animation duration');
+      }
+      
       // Center box is already hidden, no need to hide it again
       
-      // Create the retracting animation - slowly raise from target to portal position
+      // Create the retracting animation - duration synchronized with audio
       this.tweens.add({
         targets: this.alientube,
         y: this.alientubePortalY,
-        duration: 2000, // 2 seconds for faster retraction
+        duration: animationDuration,
         ease: 'Power2.easeIn',
         onComplete: () => {
           this.isAlientubeEmerging = false;
           this.alientube.setVisible(false); // Hide when fully retracted
           console.log('Alientube has retracted to portal!');
+          
+          // Ensure vacuum sound is stopped when retraction is complete
+          this.stopVacuumSound();
         }
       });
+    }
+  }
+  
+  // Public method to force-stop the vacuum sound
+  public stopVacuumSound(): void {
+    if (this.vacuumSound && this.vacuumSound.isPlaying) {
+      this.vacuumSound.stop();
+      this.vacuumSound.destroy();
+      this.vacuumSound = undefined;
+      console.log('Vacuum sound stopped');
     }
   }
   
@@ -2609,6 +2674,15 @@ export class Game extends Scene {
   }
 
   private handleCenterBoxDrop(item: any) {
+    // Play suck sound when item is placed in the tube
+    if (this.cache.audio.exists('suck')) {
+      const suckSound = this.sound.add('suck', { volume: 0.6 });
+      suckSound.play();
+      console.log('Playing suck sound - item placed in alientube');
+    } else {
+      console.warn('Suck sound not found in cache');
+    }
+    
     // Disable physics on the item
     if (item.body) {
       item.body.setEnable(false);

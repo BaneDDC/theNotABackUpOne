@@ -185,6 +185,15 @@ export class Loading extends Scene {
     // Load recycler sound
     this.load.audio('recsound', 'https://1jnxxd5hmjmhwwrc.public.blob.vercel-storage.com/recsound-HB8WEyVnRhp3Vmk6oZBtP11dpUVlLT.mp3');
     
+    // Load tube sound for alientube movement
+    this.load.audio('tubesound', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/tubesound.mp3');
+    
+    // Load vacuum sound for when alientube is fully extended
+    this.load.audio('vacuum', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/vacuum.mp3');
+    
+    // Load suck sound for when items are placed in the alientube
+    this.load.audio('suck', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/suck.mp3');
+    
     // Load jar of goo asset
     this.load.image('jar_of_goo', 'https://1jnxxd5hmjmhwwrc.public.blob.vercel-storage.com/bg-removed-a%20futuristic%2090s-00s%20rick%20and%20morty%20style%20%22jar%20of%20goo%22%20no%20shadow%2C%20must%20have%20the%20name%20on%20it-7IxyGZuzQ9NpAIh575MQQ22EEEg0QR.-3');
     
