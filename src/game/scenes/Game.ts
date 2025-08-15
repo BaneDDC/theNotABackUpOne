@@ -175,10 +175,14 @@ export class Game extends Scene {
     // Store the alien order system instance for order checking
     ;(this as any).alienOrderSystemInstance = alienOrderSystem
 
-    // Listen for merge completion to trigger alientube emergence (but not complete orders)
+    // Listen for merge completion to trigger alientube emergence only for alien order items
     this.events.on('toilet:merged', (result: string) => {
-      // Trigger alientube emergence when any item is merged in toilet
-      this.triggerAlientubeEmergence()
+      // Check if there's a current alien order and if the merged item matches it
+      const currentOrder = (this as any).alienOrderSystemInstance?.getCurrentOrder();
+      if (currentOrder && result === currentOrder.requestedItem) {
+        // Only trigger alientube emergence when the merged item matches the alien order request
+        this.triggerAlientubeEmergence();
+      }
     })
     
     // Global drag handlers to ensure all items are in front of alientube when dragged

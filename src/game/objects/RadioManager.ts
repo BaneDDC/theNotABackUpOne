@@ -19,10 +19,10 @@ export class RadioManager {
   
   private isControlsVisible: boolean = false;
   private currentVolume: number = 0.5; // 0 to 1
-  private currentSong: number = 0;
+  private currentSong: number = 3; // Start with the 4th track (index 3)
   private totalSongs: number = 4; // Updated from 5 to 4 since we now have 4 actual songs
   private isDraggingDial: boolean = false;
-  private isPoweredOn: boolean = false; // Track power state - changed to false (off by default)
+  private isPoweredOn: boolean = true; // Track power state - changed to true (on by default)
   private currentMusic?: Phaser.Sound.BaseSound; // Currently playing music
   
   // Song list with actual audio
@@ -51,33 +51,77 @@ export class RadioManager {
     this.loadAudioAssets();
     
     this.setupRadioInteraction();
+    
+    // Radio is powered on by default, music will start playing once audio assets are loaded
   }
 
   private loadAudioAssets() {
+    console.log('Loading audio assets...');
+    
     // Load adventure2 audio if it's not already in the cache
     if (!this.scene.cache.audio.exists('adventure2')) {
+      console.log('Loading adventure2 audio...');
       this.scene.load.audio('adventure2', 'https://1jnxxd5hmjmhwwrc.public.blob.vercel-storage.com/adventure2-Ybp4dLj9YICm4rIEUPoCPcbCtFgMXV.mp3');
+    } else {
+      console.log('adventure2 audio already in cache');
     }
     
     // Load 80s audio if it's not already in the cache
     if (!this.scene.cache.audio.exists('80s')) {
+      console.log('Loading 80s audio...');
       this.scene.load.audio('80s', 'https://1jnxxd5hmjmhwwrc.public.blob.vercel-storage.com/80s-0JPuISQK5dWL0hv6uHW04U6ZdYMIFz.mp3');
+    } else {
+      console.log('80s audio already in cache');
     }
     
     // Load neon audio if it's not already in the cache
     if (!this.scene.cache.audio.exists('neon')) {
+      console.log('Loading neon audio...');
       this.scene.load.audio('neon', 'https://1jnxxd5hmjmhwwrc.public.blob.vercel-storage.com/neon-IJ8o0nCBRSid1xKD0lLYBoIhQV7yoK.mp3');
+    } else {
+      console.log('neon audio already in cache');
     }
     
     // Load retrowave audio if it's not already in the cache
     if (!this.scene.cache.audio.exists('retrowave')) {
+      console.log('Loading retrowave audio...');
       this.scene.load.audio('retrowave', 'https://1jnxxd5hmjmhwwrc.public.blob.vercel-storage.com/retrowave-lJ93xv7NnpGqu3eaLkvrGHHFNfb2Ra.mp3');
+    } else {
+      console.log('retrowave audio already in cache');
     }
     
     // Start loading if not already in progress
     if (!this.scene.load.isLoading()) {
+      console.log('Starting audio loading...');
       this.scene.load.start();
+    } else {
+      console.log('Audio loading already in progress...');
     }
+    
+    // Listen for when all audio files are loaded
+    this.scene.load.on('complete', () => {
+      console.log('Audio loading complete!');
+      // Audio loading is complete, now we can start playing music
+      if (this.isPoweredOn) {
+        console.log('Radio is powered on, starting to play music...');
+        this.playSong();
+      } else {
+        console.log('Radio is powered off, not starting music');
+      }
+    });
+    
+    // Listen for audio loading errors
+    this.scene.load.on('loaderror', (file: any) => {
+      console.error('Audio loading error:', file);
+    });
+    
+    // Also add a fallback timer in case the load event doesn't fire
+    this.scene.time.delayedCall(5000, () => {
+      if (this.isPoweredOn && !this.currentMusic) {
+        console.log('Fallback: Audio loading may have failed, attempting to play anyway...');
+        this.playSong();
+      }
+    });
   }
 
   private setupRadioInteraction() {
@@ -540,7 +584,10 @@ export class RadioManager {
   }
 
   private playSong() {
-    if (!this.isPoweredOn) return; // Don't play songs when powered off
+    if (!this.isPoweredOn) {
+      console.log('Radio is powered off, cannot play song');
+      return; // Don't play songs when powered off
+    }
     
     // Stop any currently playing music
     if (this.currentMusic && this.currentMusic.isPlaying) {
@@ -549,19 +596,21 @@ export class RadioManager {
     
     // Get the audio key for the current song
     const audioKey = this.audioKeys[this.currentSong];
+    console.log(`Attempting to play song ${this.currentSong}: ${this.songList[this.currentSong]} with audio key: ${audioKey}`);
     
     if (audioKey && this.scene.cache.audio.exists(audioKey)) {
+      console.log(`Audio key ${audioKey} exists in cache, creating and playing sound`);
       // Play the actual audio
       this.currentMusic = this.scene.sound.add(audioKey, { 
         volume: this.currentVolume,
         loop: true // Loop the music
       });
       this.currentMusic.play();
-      
-      // Playing song
+      console.log(`Now playing: ${this.songList[this.currentSong]}`);
     } else {
+      console.log(`Audio key ${audioKey} not found in cache or is empty`);
       // Fallback for placeholder songs
-              // Playing song (placeholder - no audio)
+      console.log('Playing song (placeholder - no audio)');
     }
     
     // Add visual feedback for song change
