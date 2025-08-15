@@ -15,6 +15,7 @@ export class TrashRecycler {
   private recyclerSprite: Phaser.GameObjects.Sprite;
   private recyclingTimer?: Phaser.Time.TimerEvent; // Timer for recycling animation
   private isAnimating: boolean = false; // Track if we're currently animating
+  private audioContext: AudioContext | null = null; // For generating beep sounds
 
   constructor(
     private scene: Scene,
@@ -413,7 +414,7 @@ export class TrashRecycler {
     const instructions = this.scene.add.text(
       recyclerX, 
       recyclerY - 220, 
-      'SORT THE ITEMS INTO MATCHING COLORED BINS!\nDrag and drop items into the correct bins.',
+      'SIMON SAYS!\nWatch the pattern and click the boxes in the same order.',
       {
         fontSize: '18px',
         color: '#ffffff',
@@ -426,271 +427,302 @@ export class TrashRecycler {
     instructions.setOrigin(0.5);
     overlayContainer.add(instructions);
     
-    // Create items (2 of each type) with randomized positions
-    const itemTypes = ['plastic', 'metal', 'paper'];
-    const itemColors = [0x3498db, 0xe67e22, 0xf1c40f]; // Blue, Orange, Yellow
-    const items: any[] = [];
-    
-    // Create all items first
-    const allItems: any[] = [];
-    itemTypes.forEach((type, index) => {
-      for (let i = 0; i < 2; i++) {
-        const item = this.scene.add.rectangle(0, 0, 30, 30, itemColors[index]);
-        item.setStrokeStyle(2, 0x2c3e50);
-        
-        // Store item data
-        (item as any).itemType = type;
-        (item as any).itemColor = itemColors[index];
-        
-        // Make interactive for drag and drop
-        item.setInteractive();
-        
-        // Enable drag and drop
-        this.scene.input.setDraggable(item);
-        
-        allItems.push(item);
-      }
-    });
-    
-    // Shuffle the items randomly
-    this.shuffleArray(allItems);
-    
-    // Position shuffled items in the grid layout
-    allItems.forEach((item, index) => {
-      // Calculate grid position (2 rows, 3 columns)
-      const row = Math.floor(index / 3);
-      const col = index % 3;
-      const gridX = recyclerX - 120 + (col * 80);
-      const gridY = recyclerY - 60 + (row * 40);
-      
-      item.setPosition(gridX, gridY);
-      
-      items.push(item);
-      overlayContainer.add(item);
-    });
-    
-    // Create bins
-    const bins: any[] = [];
-    const binTypes = ['plastic', 'metal', 'paper'];
-    const binColors = [0x3498db, 0xe67e22, 0xf1c40f];
-    const binPositions = [
-      { x: recyclerX - 100, y: recyclerY + 80 },
-      { x: recyclerX, y: recyclerY + 80 },
-      { x: recyclerX + 100, y: recyclerY + 80 }
+    // Create Simon boxes (red, blue, green)
+    const boxColors = [0xff0000, 0x0000ff, 0x00ff00]; // Red, Blue, Green
+    const boxPositions = [
+      { x: recyclerX - 80, y: recyclerY - 20 },
+      { x: recyclerX, y: recyclerY - 20 },
+      { x: recyclerX + 80, y: recyclerY - 20 }
     ];
     
-    binTypes.forEach((type, index) => {
-      const bin = this.scene.add.rectangle(0, 0, 60, 40, binColors[index], 0.3);
-      bin.setStrokeStyle(3, binColors[index]);
-      bin.setPosition(binPositions[index].x, binPositions[index].y);
+    const simonBoxes: any[] = [];
+    boxColors.forEach((color, index) => {
+      const box = this.scene.add.rectangle(0, 0, 60, 60, color, 0.7);
+      box.setStrokeStyle(3, 0xffffff);
+      box.setPosition(boxPositions[index].x, boxPositions[index].y);
       
-      // Add label
-      const label = this.scene.add.text(0, 0, type.toUpperCase(), {
-        fontSize: '14px',
-        color: '#ffffff',
-        fontStyle: 'bold'
-      });
-      label.setOrigin(0.5);
-      bin.setPosition(binPositions[index].x, binPositions[index].y);
+      // Store box data
+      (box as any).boxIndex = index;
+      (box as any).boxColor = color;
       
-      (bin as any).binType = type;
-      bins.push(bin);
+      // Make interactive for clicking
+      box.setInteractive();
       
-      overlayContainer.add(bin);
-      overlayContainer.add(label);
+      simonBoxes.push(box);
+      overlayContainer.add(box);
     });
     
-    // Create score and timer
-    let score = 0;
-    let timeLeft = 10; // Reduced from 30 to 10 seconds for more challenge
-    
-    const scoreText = this.scene.add.text(
+    // Create status text
+    const statusText = this.scene.add.text(
       recyclerX, 
-      recyclerY - 120, 
-      `Score: ${score}/6`,
+      recyclerY + 80, 
+      'Watch the pattern...',
       {
         fontSize: '20px',
+        color: '#ffffff',
+        backgroundColor: 'rgba(0,0,0,0.8)',
+        padding: { x: 8, y: 4 }
+      }
+    );
+    statusText.setOrigin(0.5);
+    overlayContainer.add(statusText);
+    
+    // Create progress text
+    const progressText = this.scene.add.text(
+      recyclerX, 
+      recyclerY + 120, 
+      'Pattern: 0/5',
+      {
+        fontSize: '16px',
         color: '#27ae60',
         backgroundColor: 'rgba(0,0,0,0.8)',
         padding: { x: 8, y: 4 }
       }
     );
-    scoreText.setOrigin(0.5);
-    overlayContainer.add(scoreText);
+    progressText.setOrigin(0.5);
+    overlayContainer.add(progressText);
     
-    const timerText = this.scene.add.text(
-      recyclerX, 
-      recyclerY - 150, 
-      `Time: ${timeLeft}s`,
-      {
-        fontSize: '24px',
-        color: '#ffffff',
-        backgroundColor: 'rgba(0,0,0,0.8)',
-        padding: { x: 8, y: 4 }
-      }
-    );
-    timerText.setOrigin(0.5);
-    overlayContainer.add(timerText);
-    
-    // Start timer
-    const timer = this.scene.time.addEvent({
-      delay: 1000,
-      callback: () => {
-        timeLeft--;
-        timerText.setText(`Time: ${timeLeft}s`);
-        
-        if (timeLeft <= 0) {
-          this.endRecyclingMinigame(overlayContainer, false);
-        }
-      },
-      loop: true
-    });
-    
-    // Set up drag and drop events
-    this.setupDragAndDrop(overlayContainer, items, bins, scoreText);
+    // Start Simon game
+    this.startSimonGame(overlayContainer, simonBoxes, statusText, progressText);
     
     // Store references for cleanup
     (this as any).recyclingOverlay = overlayContainer;
-    (this as any).recyclingTimer = timer;
-    (this as any).recyclingItems = items;
-    (this as any).recyclingBins = bins;
+    (this as any).simonBoxes = simonBoxes;
   }
   
-  // Drag and drop functionality replaced the click handler
+  // Simon game functionality
   
-  private setupDragAndDrop(overlayContainer: any, items: any[], bins: any[], scoreText: any): void {
-    // Handle drag start
-    this.scene.input.on('dragstart', (pointer: Phaser.Input.Pointer, dragObj: any) => {
-      if (items.includes(dragObj)) {
-        // Store original position for return if drop fails
-        (dragObj as any).originalX = dragObj.x;
-        (dragObj as any).originalY = dragObj.y;
-        
-        // Scale up slightly while dragging
-        dragObj.setScale(1.2);
-        dragObj.setDepth(10002); // Bring to very top while dragging
-      }
-    });
+  private startSimonGame(overlayContainer: any, simonBoxes: any[], statusText: any, progressText: any): void {
+    // Initialize audio context for beep sounds
+    this.initAudioContext();
     
-    // Handle drag
-    this.scene.input.on('drag', (pointer: Phaser.Input.Pointer, dragObj: any, dragX: number, dragY: number) => {
-      if (items.includes(dragObj)) {
-        dragObj.x = dragX;
-        dragObj.y = dragY;
-      }
-    });
+    // Multi-stage game state
+    let currentLevel = 1;
+    let accumulatedRewards = 0;
+    let isShowingPattern = true;
+    let isPlayerTurn = false;
     
-    // Handle drag end
-    this.scene.input.on('dragend', (pointer: Phaser.Input.Pointer, dragObj: any) => {
-      if (items.includes(dragObj)) {
-        // Reset scale and depth
-        dragObj.setScale(1.0);
-        dragObj.setDepth(9999);
-        
-        // Check if dropped on a bin
-        const droppedOnBin = this.checkBinDrop(dragObj, bins);
-        
-        if (droppedOnBin) {
-          // Check if it's the correct bin
-          if ((droppedOnBin as any).binType === (dragObj as any).itemType) {
-            // Correct bin - animate item into bin
-            this.animateItemToBin(dragObj, droppedOnBin, items, scoreText, overlayContainer);
-          } else {
-            // Wrong bin - return to original position with shake effect
-            this.returnItemToOriginalPosition(dragObj);
-          }
-        } else {
-          // Not dropped on a bin - return to original position
-          this.returnItemToOriginalPosition(dragObj);
+    // Store game state
+    (this as any).simonCurrentLevel = currentLevel;
+    (this as any).simonAccumulatedRewards = accumulatedRewards;
+    (this as any).simonIsShowingPattern = isShowingPattern;
+    (this as any).simonIsPlayerTurn = isPlayerTurn;
+    (this as any).simonStatusText = statusText;
+    (this as any).simonProgressText = progressText;
+    (this as any).simonOverlayContainer = overlayContainer;
+    (this as any).simonBoxes = simonBoxes;
+    
+    // Start with Level 1
+    this.startSimonLevel(currentLevel);
+    
+    // Set up click handlers for the boxes
+    simonBoxes.forEach((box, index) => {
+      box.on('pointerdown', () => {
+        if ((this as any).simonIsPlayerTurn) {
+          this.handleSimonBoxClick(box, index, (this as any).simonBoxes, (this as any).simonOverlayContainer);
         }
-      }
+      });
     });
   }
   
-  private checkBinDrop(item: any, bins: any[]): any | null {
-    // Check if item is over any bin
-    for (const bin of bins) {
-      const binBounds = {
-        left: bin.x - 30,   // Half bin width
-        right: bin.x + 30,
-        top: bin.y - 20,    // Half bin height
-        bottom: bin.y + 20
-      };
-      
-      if (item.x >= binBounds.left && item.x <= binBounds.right &&
-          item.y >= binBounds.top && item.y <= binBounds.bottom) {
-        return bin;
-      }
+  private showSimonPattern(simonBoxes: any[], pattern: number[], currentIndex: number): void {
+    if (currentIndex >= pattern.length) {
+      // Pattern complete, start player turn
+      (this as any).simonIsShowingPattern = false;
+      (this as any).simonIsPlayerTurn = true;
+      (this as any).simonPlayerStep = 0;
+      (this as any).simonStatusText.setText('Your turn! Click the boxes in the same order.');
+      return;
     }
-    return null;
+    
+    const boxIndex = pattern[currentIndex];
+    const box = simonBoxes[boxIndex];
+    
+    // Light up the box
+    box.setFillStyle(0xffffff, 1); // Bright white
+    box.setStrokeStyle(3, 0xffff00); // Yellow border
+    
+    // Play the corresponding beep sound
+    this.playSimonBeep(boxIndex);
+    
+    // After 800ms, turn off the light
+    this.scene.time.delayedCall(800, () => {
+      box.setFillStyle((box as any).boxColor, 0.7); // Back to original color
+      box.setStrokeStyle(3, 0xffffff); // White border
+      
+      // Show next box in pattern after a short delay
+    this.scene.time.delayedCall(200, () => {
+        this.showSimonPattern(simonBoxes, pattern, currentIndex + 1);
+      });
+    });
   }
   
-  private animateItemToBin(item: any, bin: any, items: any[], scoreText: any, overlayContainer: any): void {
-    // Disable interaction during animation
-    item.disableInteractive();
-    this.scene.input.setDraggable(item, false);
+  private handleSimonBoxClick(box: any, boxIndex: number, simonBoxes: any[], overlayContainer: any): void {
+    const pattern = (this as any).simonCurrentPattern;
+    const playerStep = (this as any).simonPlayerStep;
     
-    // Animate item into bin
-    this.scene.tweens.add({
-      targets: item,
-      x: bin.x,
-      y: bin.y,
-      scaleX: 0.5,
-      scaleY: 0.5,
-      alpha: 0.7,
-      duration: 500,
-      ease: 'Power2.easeOut',
-      onComplete: () => {
-        // Remove item
-        item.destroy();
-        items.splice(items.indexOf(item), 1);
+    // Check if this is the correct box
+    if (boxIndex === pattern[playerStep]) {
+      // Correct! Light up the box briefly
+      box.setFillStyle(0xffffff, 1);
+      box.setStrokeStyle(3, 0x00ff00); // Green border for correct
+      
+      // Play the corresponding beep sound
+      this.playSimonBeep(boxIndex);
+      
+      // Update progress
+      (this as any).simonPlayerStep = playerStep + 1;
+      const currentLevel = (this as any).simonCurrentLevel;
+      (this as any).simonProgressText.setText(`Pattern: ${playerStep + 1}/${currentLevel}`);
+      
+      // Turn off the light after 300ms
+      this.scene.time.delayedCall(300, () => {
+        box.setFillStyle((box as any).boxColor, 0.7);
+        box.setStrokeStyle(3, 0xffffff);
         
-        // Update score
-        const currentScore = parseInt(scoreText.text.split('/')[0].split(': ')[1]) + 1;
-        scoreText.setText(`Score: ${currentScore}/6`);
-        
-        // Add success effect to bin
-        this.scene.tweens.add({
-          targets: bin,
-          scaleX: 1.2,
-          scaleY: 1.2,
-          duration: 200,
-          yoyo: true,
-          ease: 'Power2.easeOut'
-        });
-        
-        // Check if complete
-        if (currentScore >= 6) {
-          this.endRecyclingMinigame(overlayContainer, true);
+        // Check if pattern is complete
+        if (playerStep + 1 >= pattern.length) {
+          // Level success!
+          this.onSimonLevelSuccess();
         }
-      }
-    });
+      });
+    } else {
+      // Wrong box! Show error
+      box.setFillStyle(0xff0000, 1); // Red for error
+      box.setStrokeStyle(3, 0xff0000);
+      
+      // Play error beep (lower frequency for wrong clicks)
+      this.playBeep(200, 300); // 200 Hz, 300ms for error
+      
+      // Turn off the light after 500ms
+      this.scene.time.delayedCall(500, () => {
+        box.setFillStyle((box as any).boxColor, 0.7);
+        box.setStrokeStyle(3, 0xffffff);
+        
+        // Level failure
+        this.onSimonLevelFailure();
+      });
+    }
   }
   
-  private returnItemToOriginalPosition(item: any): void {
-    // Return item to its original position with a bounce effect
-    this.scene.tweens.add({
-      targets: item,
-      x: (item as any).originalX,
-      y: (item as any).originalY,
-      duration: 300,
-      ease: 'Back.easeOut',
-      onComplete: () => {
-        // Re-enable interaction
-        item.setInteractive();
-        this.scene.input.setDraggable(item, true);
-      }
-    });
+  private initAudioContext(): void {
+    if (!this.audioContext) {
+      this.audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    }
+  }
+  
+  private playBeep(frequency: number, duration: number = 200): void {
+    if (!this.audioContext) return;
     
-    // Add shake effect for wrong bin
-    this.scene.tweens.add({
-      targets: item,
-      x: item.x + 10,
-      duration: 100,
-      yoyo: true,
-      repeat: 2,
-      ease: 'Power2.easeInOut'
-    });
+    // Resume audio context if suspended (needed for browser autoplay policies)
+    if (this.audioContext.state === 'suspended') {
+      this.audioContext.resume();
+    }
+    
+    // Create oscillator for the beep
+    const oscillator = this.audioContext.createOscillator();
+    const gainNode = this.audioContext.createGain();
+    
+    // Connect oscillator to gain node, then to output
+    oscillator.connect(gainNode);
+    gainNode.connect(this.audioContext.destination);
+    
+    // Set up the sound
+    oscillator.frequency.setValueAtTime(frequency, this.audioContext.currentTime);
+    oscillator.type = 'sine'; // Clean sine wave
+    
+    // Set volume envelope (fade in/out to avoid clicks)
+    gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+    gainNode.gain.linearRampToValueAtTime(0.3, this.audioContext.currentTime + 0.01);
+    gainNode.gain.exponentialRampToValueAtTime(0.01, this.audioContext.currentTime + duration / 1000);
+    
+    // Start and stop the oscillator
+    oscillator.start(this.audioContext.currentTime);
+    oscillator.stop(this.audioContext.currentTime + duration / 1000);
+  }
+  
+  private playSimonBeep(boxIndex: number): void {
+    let frequency: number;
+    switch (boxIndex) {
+      case 0: // Red box - high beep
+        frequency = 800; // 800 Hz
+        break;
+      case 1: // Blue box - mid beep
+        frequency = 600; // 600 Hz
+        break;
+      case 2: // Green box - low beep
+        frequency = 400; // 400 Hz
+        break;
+      default:
+        return;
+    }
+    
+    this.playBeep(frequency, 200); // 200ms duration
+  }
+  
+  private startSimonLevel(level: number): void {
+    // Generate pattern for current level (1-5 beeps)
+    const pattern: number[] = [];
+    for (let i = 0; i < level; i++) {
+      pattern.push(Phaser.Math.Between(0, 2)); // 0, 1, or 2 for the three boxes
+    }
+    
+    // Update UI
+    (this as any).simonStatusText.setText(`Level ${level} - Watch the pattern...`);
+    (this as any).simonProgressText.setText(`Rewards: ${(this as any).simonAccumulatedRewards} goo jars`);
+    
+    // Store current level pattern
+    (this as any).simonCurrentPattern = pattern;
+    (this as any).simonPlayerStep = 0;
+    (this as any).simonIsShowingPattern = true;
+    (this as any).simonIsPlayerTurn = false;
+    
+    // Start showing the pattern
+    this.showSimonPattern((this as any).simonBoxes, pattern, 0);
+  }
+  
+  private onSimonLevelSuccess(): void {
+    const currentLevel = (this as any).simonCurrentLevel;
+    (this as any).simonAccumulatedRewards += 1;
+    
+    // Show success message
+    (this as any).simonStatusText.setText(`Level ${currentLevel} Complete! +1 goo jar`);
+    
+    // Check if we've completed all 5 levels
+    if (currentLevel >= 5) {
+      // All levels complete!
+      this.scene.time.delayedCall(1500, () => {
+        (this as any).simonStatusText.setText(`ALL LEVELS COMPLETE! ${(this as any).simonAccumulatedRewards} goo jars earned!`);
+        this.scene.time.delayedCall(2000, () => {
+          this.endRecyclingMinigame((this as any).simonOverlayContainer, true);
+        });
+      });
+    } else {
+      // Advance to next level
+      this.scene.time.delayedCall(1500, () => {
+        (this as any).simonCurrentLevel = currentLevel + 1;
+        this.startSimonLevel(currentLevel + 1);
+      });
+    }
+  }
+  
+  private onSimonLevelFailure(): void {
+    const currentLevel = (this as any).simonCurrentLevel;
+    const accumulatedRewards = (this as any).simonAccumulatedRewards;
+    
+    if (currentLevel === 1) {
+      // Level 1 failure = 0 rewards
+      (this as any).simonStatusText.setText('Level 1 Failed! No goo jars earned.');
+      this.scene.time.delayedCall(2000, () => {
+        this.endRecyclingMinigame((this as any).simonOverlayContainer, false);
+      });
+    } else {
+      // Higher level failure = keep accumulated rewards
+      (this as any).simonStatusText.setText(`Level ${currentLevel} Failed! ${accumulatedRewards} goo jars earned.`);
+      this.scene.time.delayedCall(2000, () => {
+        this.endRecyclingMinigame((this as any).simonOverlayContainer, true);
+      });
+    }
   }
   
   private endRecyclingMinigame(overlayContainer: any, success: boolean): void {
@@ -732,7 +764,13 @@ export class TrashRecycler {
     // Clear all items with animation
     this.clearItems();
 
-    // Start squeeze animation with audio, which will spawn the goo jar
+    // Get the number of goo jars earned from the Simon game
+    const gooJarsEarned = (this as any).simonAccumulatedRewards || 1;
+    
+    // Store the number of goo jars to spawn
+    (this as any).gooJarsToSpawn = gooJarsEarned;
+
+    // Start squeeze animation with audio, which will spawn the goo jars
     this.startSqueezeAnimationWithAudio();
   }
   
@@ -800,6 +838,18 @@ export class TrashRecycler {
   }
 
   private spawnGooJar() {
+    // Get the number of goo jars to spawn
+    const gooJarsToSpawn = (this as any).gooJarsToSpawn || 1;
+    
+    // Spawn multiple goo jars with slight delays
+    for (let i = 0; i < gooJarsToSpawn; i++) {
+      this.scene.time.delayedCall(i * 200, () => { // 200ms delay between each jar
+        this.spawnSingleGooJar();
+      });
+    }
+  }
+  
+  private spawnSingleGooJar() {
     // Calculate spawn position - left side middle of the recycler
     const spawnX = this.recyclerSprite.x - 90; // 90 pixels to the left of recycler center
     const spawnY = this.recyclerSprite.y; // Same Y as recycler center
@@ -807,7 +857,6 @@ export class TrashRecycler {
     // Get the merge system to spawn the jar
     const merge = (this.scene as any).getMergeSystem ? (this.scene as any).getMergeSystem() : null;
     if (!merge) {
-
       return;
     }
     
