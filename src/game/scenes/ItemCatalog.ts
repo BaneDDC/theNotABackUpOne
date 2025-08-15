@@ -86,8 +86,15 @@ export class ItemCatalog extends Scene {
       this.customCursor.setDepth(100000);
       this.customCursor.setScrollFactor(0);
       this.customCursor.setVisible(true);
+          // Apply handedness preference
+    const handedness = this.registry.get('playerHandedness') || 'right';
+    if (handedness === 'left') {
+      this.customCursor.setFlipX(true);
+      this.customCursor.setFlipY(true);
+    } else {
       this.customCursor.setFlipY(true); // Match the Game scene cursor flip
-      this.customCursor.setOrigin(0, 0); // Set origin to upper left corner
+    }
+    this.customCursor.setOrigin(0.5, 0.5); // Set origin to center
       
       this.cursorReady = true;
       

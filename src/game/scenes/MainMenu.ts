@@ -12,6 +12,12 @@ export class MainMenu extends Scene {
   private newGameButton!: Phaser.GameObjects.Graphics;
   private saveGameChoice: 'continue' | 'new' | null = null;
   private hasSaveData: boolean = false;
+  private leftHandedButton!: Phaser.GameObjects.Graphics;
+  private rightHandedButton!: Phaser.GameObjects.Graphics;
+  private leftHandedText!: Phaser.GameObjects.Text;
+  private rightHandedText!: Phaser.GameObjects.Text;
+  private handednessLabel!: Phaser.GameObjects.Text;
+  private selectedHandedness: 'left' | 'right' = 'right';
 
   constructor() {
     super("MainMenu");
@@ -154,8 +160,116 @@ export class MainMenu extends Scene {
       this.onStartGameClick();
     });
 
+    // Create handedness selection UI
+    this.createHandednessSelectionUI(centerX, centerY);
+
     // Create save game choice UI (initially hidden)
     this.createSaveGameChoiceUI(centerX, centerY);
+  }
+
+  private createHandednessSelectionUI(centerX: number, centerY: number) {
+    // Load saved handedness preference or default to right-handed
+    const savedHandedness = localStorage.getItem('player_handedness');
+    this.selectedHandedness = (savedHandedness as 'left' | 'right') || 'right';
+
+    // Create label
+    this.handednessLabel = this.add.text(centerX, centerY + 150, "SELECT HANDEDNESS:", {
+      fontSize: "18px",
+      color: "#ffffff",
+      fontStyle: "bold"
+    });
+    this.handednessLabel.setOrigin(0.5);
+    this.handednessLabel.setDepth(2);
+
+    // Create left-handed button
+    this.leftHandedButton = this.add.rectangle(centerX - 100, centerY + 200, 150, 50, 0x95a5a6);
+    this.leftHandedButton.setStrokeStyle(2, 0x7f8c8d);
+    this.leftHandedButton.setDepth(2);
+    this.leftHandedButton.setInteractive();
+
+    this.leftHandedText = this.add.text(centerX - 100, centerY + 200, "LEFT HANDED", {
+      fontSize: "14px",
+      color: "#ffffff",
+      fontStyle: "bold"
+    });
+    this.leftHandedText.setOrigin(0.5);
+    this.leftHandedText.setDepth(3);
+
+    // Create right-handed button
+    this.rightHandedButton = this.add.rectangle(centerX + 100, centerY + 200, 150, 50, 0x27ae60);
+    this.rightHandedButton.setStrokeStyle(2, 0x2ecc71);
+    this.rightHandedButton.setDepth(2);
+    this.rightHandedButton.setInteractive();
+
+    this.rightHandedText = this.add.text(centerX + 100, centerY + 200, "RIGHT HANDED", {
+      fontSize: "14px",
+      color: "#ffffff",
+      fontStyle: "bold"
+    });
+    this.rightHandedText.setOrigin(0.5);
+    this.rightHandedText.setDepth(3);
+
+    // Set initial button states
+    this.updateHandednessButtonStates();
+
+    // Add button interactions
+    this.leftHandedButton.on('pointerover', () => {
+      if (this.selectedHandedness !== 'left') {
+        this.leftHandedButton.setFillStyle(0x7f8c8d);
+        this.input.setDefaultCursor('pointer');
+      }
+    });
+
+    this.leftHandedButton.on('pointerout', () => {
+      this.updateHandednessButtonStates();
+      this.input.setDefaultCursor('default');
+    });
+
+    this.leftHandedButton.on('pointerdown', () => {
+      this.selectedHandedness = 'left';
+      this.updateHandednessButtonStates();
+      this.saveHandednessPreference();
+    });
+
+    this.rightHandedButton.on('pointerover', () => {
+      if (this.selectedHandedness !== 'right') {
+        this.rightHandedButton.setFillStyle(0x2ecc71);
+        this.input.setDefaultCursor('pointer');
+      }
+    });
+
+    this.rightHandedButton.on('pointerout', () => {
+      this.updateHandednessButtonStates();
+      this.input.setDefaultCursor('default');
+    });
+
+    this.rightHandedButton.on('pointerdown', () => {
+      this.selectedHandedness = 'right';
+      this.updateHandednessButtonStates();
+      this.saveHandednessPreference();
+    });
+  }
+
+  private updateHandednessButtonStates() {
+    if (this.selectedHandedness === 'left') {
+      this.leftHandedButton.setFillStyle(0x27ae60);
+      this.leftHandedButton.setStrokeStyle(2, 0x2ecc71);
+      this.rightHandedButton.setFillStyle(0x95a5a6);
+      this.rightHandedButton.setStrokeStyle(2, 0x7f8c8d);
+    } else {
+      this.leftHandedButton.setFillStyle(0x95a5a6);
+      this.leftHandedButton.setStrokeStyle(2, 0x7f8c8d);
+      this.rightHandedButton.setFillStyle(0x27ae60);
+      this.rightHandedButton.setStrokeStyle(2, 0x2ecc71);
+    }
+  }
+
+  private saveHandednessPreference() {
+    try {
+      localStorage.setItem('player_handedness', this.selectedHandedness);
+    } catch (e) {
+      // Ignore errors
+    }
   }
 
   private createSaveGameChoiceUI(centerX: number, centerY: number) {
@@ -404,6 +518,9 @@ export class MainMenu extends Scene {
   private startGame() {
     // Set the save game choice in the registry so Game scene can access it
     this.registry.set('saveGameChoice', this.saveGameChoice);
+    
+    // Set the handedness preference in the registry
+    this.registry.set('playerHandedness', this.selectedHandedness);
     
     // If starting a new game, ensure save data is cleared
     if (this.saveGameChoice === 'new') {

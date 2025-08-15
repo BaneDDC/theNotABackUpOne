@@ -558,8 +558,15 @@ export class Bestiary extends Scene {
     cursor.setDepth(999999); // Even higher depth to ensure it's above everything
     cursor.setScrollFactor(0);
     cursor.setVisible(true);
-    cursor.setFlipY(true); // Match the Game scene cursor flip
-    cursor.setOrigin(0, 0); // Set origin to upper left corner
+    // Apply handedness preference
+    const handedness = this.registry.get('playerHandedness') || 'right';
+    if (handedness === 'left') {
+      cursor.setFlipX(true);
+      cursor.setFlipY(true);
+    } else {
+      cursor.setFlipY(true); // Match the Game scene cursor flip
+    }
+    cursor.setOrigin(0.5, 0.5); // Set origin to center
     
     // Set up pointer tracking for this scene
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {

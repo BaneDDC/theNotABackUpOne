@@ -1222,9 +1222,9 @@ export class Game extends Scene {
             if (top.frame && top.frame.texture) {
 
               this.logTextureInfo(top.frame.texture.key, top);
-                    } else {
+            } else {
           // No texture found on object
-        }
+            }
           }
         } else {
 
