@@ -579,12 +579,12 @@ export class TrashRecycler {
       this.scene.time.delayedCall(300, () => {
         box.setFillStyle((box as any).boxColor, 0.7);
         box.setStrokeStyle(3, 0xffffff);
-        
-        // Check if pattern is complete
+      
+      // Check if pattern is complete
         if (playerStep + 1 >= pattern.length) {
           // Level success!
           this.onSimonLevelSuccess();
-        }
+      }
       });
     } else {
       // Wrong box! Show error
