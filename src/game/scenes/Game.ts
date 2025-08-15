@@ -180,6 +180,10 @@ export class Game extends Scene {
 
     this.events.on('tutorial:complete', () => {
       this.completeTutorial();
+      // Notify alien order system that tutorial is completed
+      if ((this as any).alienOrderSystemInstance) {
+        (this as any).alienOrderSystemInstance.setTutorialCompleted(true);
+      }
     });
 
     this.events.on('toilet:flush', () => {
@@ -419,10 +423,8 @@ export class Game extends Scene {
         if (merge.spawner) {
           merge.spawner.spawnPenaltyItem("Unstable Goo");
           
-          // Complete tutorial after both items are spawned
-          this.time.delayedCall(2000, () => {
-            this.completeTutorial();
-          });
+          // Tutorial will now complete when player cleans the first goo puddle with the mop
+          // No need to auto-complete here
         }
       });
     } else {
@@ -430,14 +432,17 @@ export class Game extends Scene {
 
 
       
-      // Fallback: complete tutorial anyway
-      this.time.delayedCall(1000, () => {
-        this.completeTutorial();
-      });
+      // Fallback: tutorial will complete when player cleans goo puddle
+      // No need to auto-complete here
     }
   }
 
   private completeTutorial() {
+    // Prevent duplicate tutorial completion
+    if (!this.tutorialPhase) {
+      return;
+    }
+    
     this.tutorialPhase = false;
     
     // Start normal portal spawning
@@ -467,6 +472,9 @@ export class Game extends Scene {
         onComplete: () => message.destroy()
       });
     });
+    
+    // Emit tutorial completion event
+    this.events.emit('tutorial:complete');
   }
 
   private startToiletPulsinging() {
@@ -1485,6 +1493,15 @@ export class Game extends Scene {
     const cleanupCount = (splatter as any).cleanupCount;
     const maxCleanups = (splatter as any).maxCleanups || 3;
     
+    // Check if this is the first goo puddle being cleaned (tutorial completion trigger)
+    if (this.tutorialPhase && cleanupCount === 1) {
+      // This is the first cleanup of the first goo puddle during tutorial
+      // Complete the tutorial after a short delay to let the cleaning animation play
+      this.time.delayedCall(500, () => {
+        this.completeTutorial();
+      });
+    }
+    
     if (cleanupCount >= maxCleanups) {
       // Remove splatter completely after 3rd swipe
       this.removeSplatterWithMop(splatter);
@@ -1986,6 +2003,11 @@ export class Game extends Scene {
         // Ensure tutorial phase is false and portal should be created
         this.tutorialPhase = false;
         this.portalCreated = true; // Mark that portal should exist
+        
+        // Notify alien order system that tutorial is completed (for saved games)
+        if ((this as any).alienOrderSystemInstance) {
+          (this as any).alienOrderSystemInstance.setTutorialCompleted(true);
+        }
       }
 
       // Restore store items first (before regular items)

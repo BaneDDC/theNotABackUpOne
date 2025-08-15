@@ -1,7 +1,7 @@
 // src/game/objects/ui/AlienOrderSystem.ts
 
 import Phaser from 'phaser'
-import { Item, getTier, TIER1, RECIPES } from '../../config/mergeDataFull'
+import { Item, getTier, TIER1, RECIPES, getMergeResult } from '../../config/mergeDataFull'
 
 interface Order {
   id: string
@@ -41,9 +41,21 @@ export class AlienOrderSystem {
     4: 8,    // Tier 4 merges: 8x goo
     5: 16    // Tier 5+ merges: 16x goo
   }
+  
+  // Track completed orders to ensure first 4 are achievable
+  private completedOrdersCount: number = 0
+  private readonly FIRST_ORDERS_LIMIT = 4
+  
+  // Tutorial completion tracking
+  private isTutorialCompleted: boolean = false
+  
+  // Track pending order generation timer
+  private pendingOrderTimer?: Phaser.Time.TimerEvent
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene
+    // Check tutorial completion status when system is created
+    this.checkTutorialCompletionStatus()
   }
 
   public create(): { container: Phaser.GameObjects.Container; alienHead: Phaser.GameObjects.Sprite; card: Phaser.GameObjects.Sprite } {
@@ -66,7 +78,7 @@ export class AlienOrderSystem {
     this.alienHead.setDepth(1001)
 
     // Create order text - positioned to the right of the alien head
-    this.orderText = this.scene.add.text(90, -20, '', {
+    this.orderText = this.scene.add.text(80, -20, '', {
       fontSize: '11px',
       color: '#000000',
       wordWrap: { width: 120 },
@@ -75,7 +87,7 @@ export class AlienOrderSystem {
     this.orderText.setDepth(1002)
 
     // Create reward text - positioned below the order text
-    this.rewardText = this.scene.add.text(90, 20, '', {
+    this.rewardText = this.scene.add.text(80, 30, '', {
       fontSize: '12px',
       color: '#00aa00',
       fontStyle: 'bold'
@@ -91,11 +103,8 @@ export class AlienOrderSystem {
     // Add spacebar key listener to log position
     this.setupSpacebarListener()
 
-    // Generate first order
-    this.generateNewOrder()
-
-    // Slide in from the left when first created
-    this.slideIn()
+    // Don't generate first order until tutorial is completed
+    // The system will remain completely hidden until then
 
     return { 
       container: this.container, 
@@ -112,11 +121,18 @@ export class AlienOrderSystem {
     // Debug: Log that the container is interactive
     console.log('Alien Order System: Container made interactive')
 
-    // Click to toggle visibility
+    // Click to handle different states
     this.container.on('pointerdown', () => {
       if (this.isVisible) {
-        this.slideOut()
+        // If we have a current order, clicking hides the system
+        if (this.hasCurrentOrder()) {
+          this.slideOut()
+        } else {
+          // If no current order, clicking generates a new one immediately (skip wait)
+          this.handleNewOrderRequest()
+        }
       } else {
+        // If hidden, clicking shows the system
         this.slideIn()
       }
     })
@@ -287,11 +303,93 @@ export class AlienOrderSystem {
 
   // Method to destroy the order system
   public destroy(): void {
+    // Clean up pending order timer
+    if (this.pendingOrderTimer) {
+      this.pendingOrderTimer.destroy()
+      this.pendingOrderTimer = undefined
+    }
+    
     this.container.destroy()
   }
 
   // Order system methods
   private generateNewOrder(): void {
+    // Don't generate orders until tutorial is completed
+    if (!this.isTutorialCompleted) {
+      return
+    }
+    
+    // For the first 4 orders, only generate orders for items that can be made with 1 merge
+    if (this.completedOrdersCount < this.FIRST_ORDERS_LIMIT) {
+      this.generateAchievableOrder()
+    } else {
+      // After first 4 orders, use the original random generation
+      this.generateRandomOrder()
+    }
+  }
+
+  private generateAchievableOrder(): void {
+    // Get current items from the scene
+    const currentItems = this.getCurrentItems()
+    
+    if (currentItems.length === 0) {
+      // If no items, fall back to random generation
+      this.generateRandomOrder()
+      return
+    }
+
+    // Find all possible 1-merge recipes from current items
+    const achievableRecipes: Array<{ingredients: [Item, Item], result: Item}> = []
+    
+    // Check all pairs of current items for valid merges
+    for (let i = 0; i < currentItems.length; i++) {
+      for (let j = i + 1; j < currentItems.length; j++) {
+        const result = getMergeResult(currentItems[i], currentItems[j])
+        if (result) {
+          achievableRecipes.push({
+            ingredients: [currentItems[i], currentItems[j]],
+            result: result
+          })
+        }
+      }
+    }
+    
+    if (achievableRecipes.length === 0) {
+      // If no achievable recipes, fall back to random generation
+      this.generateRandomOrder()
+      return
+    }
+    
+    // Pick a random achievable recipe
+    const randomRecipe = achievableRecipes[Math.floor(Math.random() * achievableRecipes.length)]
+    const { ingredients, result } = randomRecipe
+    
+    // Calculate difficulty and reward
+    const difficulty = getTier(result)
+    const baseGoo = 10 // Base goo reward
+    const multiplier = this.DIFFICULTY_MULTIPLIERS[difficulty as keyof typeof this.DIFFICULTY_MULTIPLIERS] || 1
+    const gooReward = baseGoo * multiplier
+
+    this.currentOrder = {
+      id: `order_${Date.now()}`,
+      requestedItem: result,
+      requiredItems: ingredients,
+      difficulty,
+      gooReward,
+      isCompleted: false,
+      timeCreated: Date.now()
+    }
+
+    // Display the order
+    this.displayOrder()
+    
+    // Start order timer
+    this.startOrderTimer()
+    
+    console.log('New achievable order generated:', this.currentOrder)
+  }
+
+  private generateRandomOrder(): void {
     // Find a random recipe that requires merging
     const recipeEntries = Object.entries(RECIPES)
     const randomRecipe = recipeEntries[Math.floor(Math.random() * recipeEntries.length)]
@@ -327,7 +425,24 @@ export class AlienOrderSystem {
     // Start order timer
     this.startOrderTimer()
     
-    console.log('New order generated:', this.currentOrder)
+    console.log('New random order generated:', this.currentOrder)
+  }
+
+  private getCurrentItems(): string[] {
+    const items: string[] = []
+    
+    // Get all items from the scene that have itemName property
+    this.scene.children.list.forEach(child => {
+      if ((child as any).itemName) {
+        const itemName = (child as any).itemName
+        // Exclude enemies and hazards from mergeable check
+        if (!itemName.startsWith("Enemy:") && !itemName.startsWith("Hazard:")) {
+          items.push(itemName)
+        }
+      }
+    })
+    
+    return items
   }
 
   private displayOrder(): void {
@@ -364,7 +479,7 @@ export class AlienOrderSystem {
     this.currentOrder = undefined
     
     // Clear display
-    this.orderText.setText('Order Failed!\n\nClick to get\nnew order')
+    this.orderText.setText('Order Failed!\n\nNew order in\n30-60 seconds')
     this.rewardText.setText('')
     
     // Stop timer
@@ -372,6 +487,23 @@ export class AlienOrderSystem {
       this.orderTimer.destroy()
       this.orderTimer = undefined
     }
+    
+    // Slide the card back into place (hidden position)
+    this.slideOut()
+    
+    // Generate new order after a random delay between 30-60 seconds
+    const delayMs = Phaser.Math.Between(30000, 60000) // 30-60 seconds
+    console.log(`New order will appear in ${delayMs / 1000} seconds`)
+    
+    this.pendingOrderTimer = this.scene.time.delayedCall(delayMs, () => {
+      // Only generate new order if we're still in tutorial completed state
+      if (this.isTutorialCompleted) {
+        this.generateNewOrder()
+        // Slide the card back into view
+        this.slideIn()
+      }
+      this.pendingOrderTimer = undefined
+    })
   }
 
   public checkOrderCompletion(mergedItem: Item): boolean {
@@ -397,6 +529,9 @@ export class AlienOrderSystem {
     // Mark as completed
     this.currentOrder.isCompleted = true
     
+    // Increment completed orders count
+    this.completedOrdersCount++
+    
     // Stop timer
     if (this.orderTimer) {
       this.orderTimer.destroy()
@@ -404,15 +539,29 @@ export class AlienOrderSystem {
     }
     
     // Show completion message
-    this.orderText.setText('Order Complete!\n\nClick to get\nnew order')
+    this.orderText.setText('Order Complete!\n\nNew order in\n30-60 seconds')
     this.rewardText.setText(`+${gooReward} Goo!`)
     
     // Add goo to player (you'll need to implement this)
     this.addGooToPlayer(gooReward)
     
-    // Generate new order after a delay
+    // Slide the card back into place (hidden position) after showing completion message
     this.scene.time.delayedCall(3000, () => {
-      this.generateNewOrder()
+      this.slideOut()
+    })
+    
+    // Generate new order after a random delay between 30-60 seconds
+    const delayMs = Phaser.Math.Between(30000, 60000) // 30-60 seconds
+    console.log(`New order will appear in ${delayMs / 1000} seconds`)
+    
+    this.pendingOrderTimer = this.scene.time.delayedCall(delayMs, () => {
+      // Only generate new order if we're still in tutorial completed state
+      if (this.isTutorialCompleted) {
+        this.generateNewOrder()
+        // Slide the card back into view
+        this.slideIn()
+      }
+      this.pendingOrderTimer = undefined
     })
   }
 
@@ -434,10 +583,72 @@ export class AlienOrderSystem {
     return this.currentOrder
   }
 
+  public hasCurrentOrder(): boolean {
+    return this.currentOrder !== undefined
+  }
+
   public forceNewOrder(): void {
     if (this.currentOrder) {
       this.failOrder()
     }
     this.generateNewOrder()
+  }
+
+  private handleNewOrderRequest(): void {
+    // Only generate new order if tutorial is completed
+    if (!this.isTutorialCompleted) {
+      return
+    }
+    
+    // Cancel any pending order generation timer
+    if (this.pendingOrderTimer) {
+      this.pendingOrderTimer.destroy()
+      this.pendingOrderTimer = undefined
+      console.log('Pending order timer cancelled - generating new order immediately')
+    }
+    
+    // Generate new order immediately
+    this.generateNewOrder()
+  }
+
+  private checkTutorialCompletionStatus(): void {
+    try {
+      const savedState = localStorage.getItem('toilet_merge_game_state')
+      if (savedState) {
+        const gameState = JSON.parse(savedState)
+        this.isTutorialCompleted = gameState.tutorialCompleted === true
+      }
+    } catch (error) {
+      // Default to tutorial not completed if we can't read the save
+      this.isTutorialCompleted = false
+    }
+    
+    // Also check the scene's tutorialPhase property if available
+    const gameScene = this.scene as any
+    if (gameScene.tutorialPhase !== undefined) {
+      this.isTutorialCompleted = !gameScene.tutorialPhase
+    }
+    
+    // If tutorial is completed, start the order system
+    if (this.isTutorialCompleted && this.container) {
+      this.startOrderSystem()
+    }
+  }
+
+  // Method to manually mark tutorial as completed (called from Game scene)
+  public setTutorialCompleted(completed: boolean): void {
+    this.isTutorialCompleted = completed
+    if (completed && this.container) {
+      // Start the order system now that tutorial is complete
+      this.startOrderSystem()
+    }
+  }
+
+  private startOrderSystem(): void {
+    // Generate first order
+    this.generateNewOrder()
+    
+    // Slide in from the left to reveal the system
+    this.slideIn()
   }
 }

@@ -95,7 +95,7 @@ export class EnemyManager {
     goo.isEnemy = true;
     goo.targetAsset = null;
     goo.isDissolving = false;
-    goo.dissolveTimer = null;
+    goo.dissolveTimer = undefined;
     goo.moveSpeed = 30;
     goo.hasLanded = false;
     goo.isActive = true;
@@ -121,23 +121,79 @@ export class EnemyManager {
   }
 
   private damageUnstableGoo(goo: EnemySprite): void {
-    if (!goo.active || goo.isDissolving) return;
+    if (!goo.active) return;
+    
+    // Allow damage even while dissolving, but give visual feedback
+    const isCurrentlyEating = goo.isDissolving;
     
     // Reduce health
     goo.currentHealth!--;
     
-    // Visual feedback
-    this.scene.tweens.add({
-      targets: goo,
-      tint: 0xff4442,
-      scaleX: goo.scaleX * 1.2,
-      scaleY: goo.scaleY * 1.2,
-      duration: 100,
-      yoyo: true,
-      onComplete: () => {
-        goo.setTint(0xffffff);
+    // Visual feedback - different effect if currently eating
+    if (isCurrentlyEating) {
+      // Special effect when eating - more dramatic visual feedback
+      this.scene.tweens.add({
+        targets: goo,
+        tint: 0xff0000,
+        scaleX: goo.scaleX * 1.1,
+        scaleY: goo.scaleY * 1.1,
+        duration: 150,
+        yoyo: true,
+        onComplete: () => {
+          goo.setTint(0xffffff);
+        }
+      });
+      
+      // If eating, also interrupt the eating process
+      if (goo.dissolveTimer) {
+        goo.dissolveTimer.destroy();
+        goo.dissolveTimer = undefined;
       }
-    });
+      goo.isDissolving = false;
+      
+      // Reset any visual effects on the target asset
+      this.scene.children.list.forEach(child => {
+        if ((child as any).itemName && 
+            (child as any).itemName !== "Unstable Goo" && 
+            !(child as any).isUnstableGoo &&
+            child.active) {
+          const asset = child as any;
+          // Aggressively stop ALL tweens and effects on this asset
+          this.scene.tweens.killTweensOf(asset);
+          // Force reset all visual properties
+          asset.setTint(0xffffff);
+          asset.setAlpha(1);
+          asset.setScale(asset.scaleX, asset.scaleY);
+          // Clear any custom properties that might be causing issues
+          if (asset.dissolveTween) {
+            asset.dissolveTween = undefined;
+          }
+          // Force a complete visual reset
+          asset.clearTint();
+          asset.setAlpha(1);
+        }
+      });
+      
+      // Resume AI after a short delay
+      this.scene.time.delayedCall(500, () => {
+        if (goo.active && !goo.isDissolving) {
+          this.startUnstableGooAI(goo);
+        }
+      });
+    } else {
+      // Normal damage effect when not eating
+      this.scene.tweens.add({
+        targets: goo,
+        tint: 0xff4442,
+        scaleX: goo.scaleX * 1.1,
+        scaleY: goo.scaleY * 1.1,
+        duration: 100,
+        yoyo: true,
+        onComplete: () => {
+          goo.setTint(0xffffff);
+        }
+      });
+    }
     
     // Stop movement temporarily
     this.stopGoo(goo, 250);
@@ -163,7 +219,7 @@ export class EnemyManager {
     goo.stopTimer = this.scene.time.delayedCall(duration, () => {
       if (goo.active && !goo.isDissolving) {
         goo.isStopped = false;
-        goo.stopTimer = null;
+        goo.stopTimer = undefined;
         
         if (goo.hasLanded) {
           this.resumeGooMovement(goo);
@@ -193,6 +249,32 @@ export class EnemyManager {
     if (goo.dissolveTimer) {
       goo.dissolveTimer.destroy();
     }
+    
+    // Clean up any dissolving items - stop their flashing effects
+    this.scene.children.list.forEach(child => {
+      if ((child as any).itemName && 
+          (child as any).itemName !== "Unstable Goo" && 
+          !(child as any).isUnstableGoo &&
+          child.active) {
+        const asset = child as any;
+        // Aggressively stop ALL tweens and effects on this asset
+        this.scene.tweens.killTweensOf(asset);
+        // Force reset all visual properties
+        asset.setTint(0xffffff);
+        asset.setAlpha(1);
+        asset.setScale(asset.scaleX, asset.scaleY);
+        // Clear any custom properties that might be causing issues
+        if (asset.dissolveTween) {
+          asset.dissolveTween = undefined;
+        }
+        // Force a complete visual reset
+        asset.clearTint();
+        asset.setAlpha(1);
+      }
+    });
+    
+    // Additional cleanup: stop ALL tweens in the scene to be extra sure
+    this.scene.tweens.killAll();
     
     // Stop spawn sound
     if (goo.spawnSound && goo.spawnSound.isPlaying) {
@@ -464,7 +546,7 @@ export class EnemyManager {
       onComplete: () => {
         // Reset goo state
         goo.isDissolving = false;
-        goo.dissolveTimer = null;
+        goo.dissolveTimer = undefined;
         goo.targetAsset = null;
         
         // Resume AI
