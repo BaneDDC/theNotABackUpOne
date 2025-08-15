@@ -36,7 +36,7 @@ export class MergeItem extends Phaser.GameObjects.Sprite {
   private setupDragEvents() {
     this.on('dragstart', () => {
       this.isDragging = true
-      this.setDepth(1000)
+      this.setDepth(2000) // Higher than alientube (1000) to be in front while dragging
       this.setScale(1.1)
     })
 
@@ -47,7 +47,7 @@ export class MergeItem extends Phaser.GameObjects.Sprite {
 
     this.on('dragend', () => {
       this.isDragging = false
-      this.setDepth(1)
+      this.setDepth(1000) // Return to normal depth (same as alientube)
       this.setScale(1)
       this.scene.events.emit('itemDropped', this)
     })

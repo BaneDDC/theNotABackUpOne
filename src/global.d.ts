@@ -45,7 +45,7 @@ declare module '*.webp' {
 }
 declare module '*.avif' {
     const src: string
-    export default src
+    export default srct
 }
 
 // Shaders

@@ -17,6 +17,7 @@ export class Game extends Scene {
   private plungerSound!: Phaser.Sound.BaseSound
   private lastPlungerSoundTime: number = 0
   private readonly PLUNGER_SOUND_COOLDOWN = 5000 // 5 seconds in milliseconds
+
   private FlushCount: number = 0 // Start with toilet empty
   private toilet!: Phaser.GameObjects.Sprite // Reference to toilet sprite
   private plunger!: Phaser.GameObjects.Sprite // Reference to plunger sprite
@@ -60,6 +61,29 @@ export class Game extends Scene {
   private interactiveMopOriginalY: number = 300 // Initial Y position
   private interactiveMopScale: number = 1.0 // Current scale of interactive mop
   private isMopBeingDragged: boolean = false // Track if mop is currently being dragged
+  
+  // Alientube properties
+  private alientube!: Phaser.GameObjects.Sprite
+  private alientubeTargetX: number = 546
+  private alientubeTargetY: number = 159
+  private alientubeTargetScale: number = 0.20
+  private alientubePortalY: number = -100 // Portal is above top of screen (completely hidden)
+  private isAlientubeEmerging: boolean = false
+  
+  // Occluder properties
+  private occluder!: Phaser.GameObjects.Graphics
+  private occluderBorder!: Phaser.GameObjects.Graphics
+  private isOccluderVisible: boolean = true
+  private isOccluderDragged: boolean = false
+  private occluderDragOffset: { x: number; y: number } = { x: 0, y: 0 }
+  private occluderX: number = 462
+  private occluderY: number = 0
+  private occluderWidth: number = 200
+  private occluderHeight: number = 20
+  
+  // Center box properties
+  private centerBox!: Phaser.GameObjects.Rectangle
+  private centerBoxScale: number = 1.0
 
   constructor() {
     super("Game")
@@ -77,6 +101,7 @@ export class Game extends Scene {
     this.load.image('alien3', 'https://raw.githubusercontent.com/localgod13/merge-assets/main/alien3.webp');
     this.load.image('alien4', 'https://raw.githubusercontent.com/localgod13/merge-assets/main/alien4.webp');
     this.load.image('card', 'https://raw.githubusercontent.com/localgod13/merge-assets/main/card.webp');
+    this.load.image('alientube', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/alientube.png');
     
     // Add error handling for image loading
     this.load.on('loaderror', (file: any) => {
@@ -95,6 +120,7 @@ export class Game extends Scene {
     this.animationManager = new (require('../managers/AnimationManager').AnimationManager)(this as any)
     this.animationManager.setupAnimatedBackground()
     this.setupNewSprite()
+    this.setupCenterBox()
     this.setupToilet()
     this.setupPlunger()
     this.setupSink()
@@ -107,6 +133,8 @@ export class Game extends Scene {
     this.setupResearchLog()
     this.setupScoreImage()
     this.setupInteractiveMop()
+    this.setupAlientube()
+    this.setupOccluder()
     this.toiletSound = this.sound.add('toiletFlush', { volume: 0.5 })
     this.plungerSound = this.sound.add('plungerSound', { volume: 0.7 })
     this.setupCollisionEditorKey()
@@ -147,19 +175,34 @@ export class Game extends Scene {
     // Store the alien order system instance for order checking
     ;(this as any).alienOrderSystemInstance = alienOrderSystem
 
-    // Listen for merge completion to check orders
+    // Listen for merge completion to trigger alientube emergence (but not complete orders)
     this.events.on('toilet:merged', (result: string) => {
-      if ((this as any).alienOrderSystemInstance) {
-        const orderCompleted = (this as any).alienOrderSystemInstance.checkOrderCompletion(result)
-        if (orderCompleted) {
-          console.log(`Order completed with merge result: ${result}`)
-        }
-      }
+      // Trigger alientube emergence when any item is merged in toilet
+      this.triggerAlientubeEmergence()
     })
+    
+    // Global drag handlers to ensure all items are in front of alientube when dragged
+    this.input.on('dragstart', (pointer: Phaser.Input.Pointer, gameObject: Phaser.GameObjects.GameObject) => {
+      // Check if this is a draggable item (has itemName property)
+      if ((gameObject as any).itemName && !(gameObject === this.interactiveMop)) {
+        // Bring draggable items to front while dragging (higher than alientube)
+        (gameObject as any).setDepth(2000);
+      }
+    });
+    
+    this.input.on('dragend', (pointer: Phaser.Input.Pointer, gameObject: Phaser.GameObjects.GameObject) => {
+      // Check if this is a draggable item (has itemName property)
+      if ((gameObject as any).itemName && !(gameObject === this.interactiveMop)) {
+        // Return items to normal depth when dragging ends
+        (gameObject as any).setDepth(1000);
+      }
+    });
 
     this.time.delayedCall(100, () => {
       this.sceneManager.recreateCustomCursor()
     })
+
+
 
     if (saveGameChoice === 'continue' && ! this.tutorialPhase && this.portalCreated) {
       this.time.delayedCall(1000, () => {
@@ -371,7 +414,7 @@ export class Game extends Scene {
     })
 
     // Create the portal sprite at specified position - start very small
-    const portal = this.add.sprite(564.96, 52.41, 'portal')
+    const portal = this.add.sprite(564.96, 42.41, 'portal')
     portal.setDisplaySize(0, 0) // Start at size 0
     portal.setFlipY(true)
     portal.setName('portal') // Add name so we can find it later
@@ -1005,6 +1048,31 @@ export class Game extends Scene {
     newSprite.play('newSpriteAnim')
   }
 
+  private setupCenterBox() {
+    // Create the center box attached to the alientube
+    // Position will be set relative to the alientube in setupAlientube
+    const centerBox = this.add.rectangle(0, 0, 100, 100, 0x00ff00)
+    centerBox.setName('centerBox')
+    centerBox.setDepth(1500) // Set depth higher than alientube (1000) and mergable items (1000)
+    
+    // Make the box interactive to detect drops
+    centerBox.setInteractive()
+    
+    // Store reference to the center box for drop detection
+    this.centerBox = centerBox
+    
+    // Hide the center box from view (invisible but still functional)
+    centerBox.setVisible(false)
+    
+    // Add mouse wheel resizing and dragging functionality
+    this.setupCenterBoxControls(centerBox)
+  }
+
+  private setupCenterBoxControls(centerBox: Phaser.GameObjects.Rectangle) {
+    // Center box is now attached to alientube - no manual controls needed
+    // Mouse wheel resizing and WASD movement removed
+  }
+
   private setupBoxSpawner() {
     // Create a new BoxSpawner instance
     this.boxSpawner = new BoxSpawner(this)
@@ -1432,6 +1500,241 @@ export class Game extends Scene {
     
 
 
+  }
+  
+  private setupAlientube() {
+    // Create the alientube sprite at portal position (top of screen)
+    this.alientube = this.add.sprite(this.alientubeTargetX, this.alientubePortalY, 'alientube');
+    this.alientube.setDisplaySize(100, 100);
+    this.alientube.setName('alientube');
+    this.alientube.setDepth(1000); // High depth to be in front
+    this.alientube.setScale(this.alientubeTargetScale);
+    
+    // Initially hide the alientube - it will emerge when needed
+    this.alientube.setVisible(false);
+    
+    // Position the center box relative to the alientube
+    if (this.centerBox) {
+      // Set the center box to the permanent position relative to the alientube
+      this.centerBox.setPosition(this.alientube.x + 29, this.alientube.y + 91); // Offset from alientube center
+      this.centerBox.setScale(0.60); // Set to permanent scale
+    }
+    
+    // Alientube is no longer interactive for dragging or resizing
+    
+    // Handle spacebar for coordinate recording
+    const spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
+    spaceKey.on('down', () => {
+      if (this.alientube) {
+        console.log(`Alientube coordinates: x: ${Math.round(this.alientube.x)}, y: ${Math.round(this.alientube.y)}`);
+      }
+      // Also log occluder position
+      console.log(`Occluder coordinates: x: ${Math.round(this.occluderX)}, y: ${Math.round(this.occluderY)}, width: ${this.occluderWidth}, height: ${this.occluderHeight}`);
+      // Log center box position and size
+      if (this.centerBox) {
+        console.log(`Center box coordinates: x: ${Math.round(this.centerBox.x)}, y: ${Math.round(this.centerBox.y)}, scale: ${this.centerBoxScale.toFixed(2)}`);
+      }
+    });
+    
+    // Handle T key for debug retract/extend
+    const tKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.T);
+    tKey.on('down', () => {
+      if (this.alientube && !this.isAlientubeEmerging) {
+        if (this.alientube.y >= this.alientubeTargetY - 5) { // Allow small tolerance for floating point
+          // Tube is extended, retract it to portal
+          console.log('Retracting alientube to portal...');
+          this.retractAlientubeToPortal();
+        } else {
+          // Tube is retracted, extend it to target
+          console.log('Extending alientube to target...');
+          this.triggerAlientubeEmergence();
+        }
+      }
+    });
+  }
+  
+  public triggerAlientubeEmergence(): void {
+    if (this.alientube && !this.isAlientubeEmerging) {
+      this.isAlientubeEmerging = true;
+      
+      // Reset alientube to portal position
+      this.alientube.setPosition(this.alientubeTargetX, this.alientubePortalY);
+      this.alientube.setScale(this.alientubeTargetScale);
+      this.alientube.setVisible(true);
+      
+      // Position the center box (but keep it hidden)
+      if (this.centerBox) {
+        this.centerBox.setPosition(this.alientube.x + 29, this.alientube.y + 91);
+      }
+      
+      // Create the emerging animation - slowly lower from portal to target position
+      this.tweens.add({
+        targets: this.alientube,
+        y: this.alientubeTargetY,
+        duration: 3000, // 3 seconds for smooth emergence
+        ease: 'Power2.easeOut',
+        onComplete: () => {
+          this.isAlientubeEmerging = false;
+          // Update center box position to final target position
+          if (this.centerBox) {
+            this.centerBox.setPosition(this.alientube.x + 29, this.alientube.y + 91);
+          }
+          console.log('Alientube has emerged from portal!');
+        }
+      });
+    }
+  }
+  
+  public retractAlientubeToPortal(): void {
+    if (this.alientube && !this.isAlientubeEmerging) {
+      this.isAlientubeEmerging = true;
+      
+      // Center box is already hidden, no need to hide it again
+      
+      // Create the retracting animation - slowly raise from target to portal position
+      this.tweens.add({
+        targets: this.alientube,
+        y: this.alientubePortalY,
+        duration: 2000, // 2 seconds for faster retraction
+        ease: 'Power2.easeIn',
+        onComplete: () => {
+          this.isAlientubeEmerging = false;
+          this.alientube.setVisible(false); // Hide when fully retracted
+          console.log('Alientube has retracted to portal!');
+        }
+      });
+    }
+  }
+  
+  private setupOccluder(): void {
+    // Create the occluder rectangle (invisible fill)
+    this.occluder = this.add.graphics();
+    this.occluder.fillStyle(0x000000, 0.5); // Semi-transparent black fill
+    this.occluder.fillRect(this.occluderX, this.occluderY, this.occluderWidth, this.occluderHeight);
+    
+    // Create the visible border around the occluder
+    this.occluderBorder = this.add.graphics();
+    this.occluderBorder.lineStyle(3, 0xff0000, 1); // Red border, 3px thick
+    this.occluderBorder.strokeRect(this.occluderX, this.occluderY, this.occluderWidth, this.occluderHeight);
+    
+    // Set depth to be above other elements
+    this.occluder.setDepth(1500);
+    this.occluderBorder.setDepth(1501);
+    
+    // Hide the occluder elements (invisible but still functional as mask)
+    this.occluder.setVisible(false);
+    this.occluderBorder.setVisible(false);
+    
+    // Create the initial mask for the alientube
+    this.createAlientubeMask();
+    
+    // Make occluder interactive for dragging
+    this.occluder.setInteractive(new Phaser.Geom.Rectangle(this.occluderX, this.occluderY, this.occluderWidth, this.occluderHeight), Phaser.Geom.Rectangle.Contains);
+    this.input.setDraggable(this.occluder);
+    
+    // Handle drag start
+    this.input.on('dragstart', (pointer: Phaser.Input.Pointer, gameObject: Phaser.GameObjects.GameObject) => {
+      if (gameObject === this.occluder) {
+        this.isOccluderDragged = true;
+        this.occluderDragOffset.x = pointer.x - this.occluderX;
+        this.occluderDragOffset.y = pointer.y - this.occluderY;
+      }
+    });
+    
+    // Handle drag
+    this.input.on('drag', (pointer: Phaser.Input.Pointer, gameObject: Phaser.GameObjects.GameObject, dragX: number, dragY: number) => {
+      if (gameObject === this.occluder) {
+        this.occluderX = dragX - this.occluderDragOffset.x;
+        this.occluderY = dragY - this.occluderDragOffset.y;
+        this.updateOccluder();
+      }
+    });
+    
+    // Handle drag end
+    this.input.on('dragend', (pointer: Phaser.Input.Pointer, gameObject: Phaser.GameObjects.GameObject) => {
+      if (gameObject === this.occluder) {
+        this.isOccluderDragged = false;
+      }
+    });
+    
+    // Handle mouse wheel for resizing
+    this.input.on('wheel', (pointer: Phaser.Input.Pointer, gameObjects: Phaser.GameObjects.GameObject[], deltaX: number, deltaY: number, deltaZ: number) => {
+      // Check if pointer is within the occluder bounds manually
+      if (this.occluder && 
+          pointer.x >= this.occluderX && pointer.x <= this.occluderX + this.occluderWidth &&
+          pointer.y >= this.occluderY && pointer.y <= this.occluderY + this.occluderHeight) {
+        // Resize width with horizontal scroll, height with vertical scroll
+        if (Math.abs(deltaX) > Math.abs(deltaY)) {
+          // Horizontal scroll - resize width
+          const widthChange = deltaX > 0 ? 10 : -10;
+          this.occluderWidth = Math.max(50, Math.min(500, this.occluderWidth + widthChange));
+        } else {
+          // Vertical scroll - resize height
+          const heightChange = deltaY > 0 ? 10 : -10;
+          this.occluderHeight = Math.max(50, Math.min(500, this.occluderHeight + heightChange));
+        }
+        this.updateOccluder();
+      }
+    });
+    
+    // Add key controls for fine-tuning
+    const arrowKeys = this.input.keyboard.addKeys('W,A,S,D');
+    arrowKeys.W.on('down', () => { this.occluderY -= 5; this.updateOccluder(); });
+    arrowKeys.S.on('down', () => { this.occluderY += 5; this.updateOccluder(); });
+    arrowKeys.A.on('down', () => { this.occluderX -= 5; this.updateOccluder(); });
+    arrowKeys.D.on('down', () => { this.occluderX += 5; this.updateOccluder(); });
+    
+    // Add key controls for resizing
+    const resizeKeys = this.input.keyboard.addKeys('Q,E,R,F');
+    resizeKeys.Q.on('down', () => { this.occluderWidth -= 5; this.updateOccluder(); });
+    resizeKeys.E.on('down', () => { this.occluderWidth += 5; this.updateOccluder(); });
+    resizeKeys.R.on('down', () => { this.occluderHeight -= 5; this.updateOccluder(); });
+    resizeKeys.F.on('down', () => { this.occluderHeight += 5; this.updateOccluder(); });
+  }
+  
+  private updateOccluder(): void {
+    // Update occluder fill
+    this.occluder.clear();
+    this.occluder.fillStyle(0x000000, 0.5);
+    this.occluder.fillRect(this.occluderX, this.occluderY, this.occluderWidth, this.occluderHeight);
+    
+    // Update occluder border
+    this.occluderBorder.clear();
+    this.occluderBorder.lineStyle(3, 0xff0000, 1);
+    this.occluderBorder.strokeRect(this.occluderX, this.occluderY, this.occluderWidth, this.occluderHeight);
+    
+    // Update interactive area
+    this.occluder.setInteractive(new Phaser.Geom.Rectangle(this.occluderX, this.occluderY, this.occluderWidth, this.occluderHeight), Phaser.Geom.Rectangle.Contains);
+    
+    // Update the mask on the alientube
+    this.createAlientubeMask();
+  }
+  
+  private createAlientubeMask(): void {
+    if (this.alientube) {
+      // Create a Graphics-based occluder (NOT this.add.rectangle)
+      const occluder = this.add.graphics()
+        .setScrollFactor(1)        // match your tube/RT scroll factor
+        .setVisible(false);        // invisible but still used as mask
+
+      // Draw the band you want to HIDE (using your positioned coordinates)
+      const bandX = this.occluderX;
+      const bandY = this.occluderY;           // y of the band to hide (your red box)
+      const bandW = this.occluderWidth;
+      const bandH = this.occluderHeight;      // band thickness
+      occluder.clear();
+      occluder.fillStyle(0xffffff, 1);
+      occluder.fillRect(bandX, bandY, bandW, bandH);
+
+      // Build a GeometryMask from the Graphics
+      const gMask = new Phaser.Display.Masks.GeometryMask(this, occluder);
+
+      // We drew the area we want to HIDE, so invert the mask:
+      gMask.invertAlpha = true;
+
+      // Apply the mask to the alientube sprite
+      this.alientube.setMask(gMask);
+    }
   }
   
   private springMopBack() {
@@ -2208,7 +2511,7 @@ export class Game extends Scene {
     }
 
     // Create the portal sprite at full size (no growing animation)
-    const portal = this.add.sprite(564.96, 52.41, 'portal')
+    const portal = this.add.sprite(564.96, 42.41, 'portal')
     portal.setDisplaySize(600, 200)
     portal.setFlipY(true)
     portal.setName('portal')
@@ -2246,6 +2549,23 @@ export class Game extends Scene {
   }
 
   private handleItemDrop(item: any) {
+    // Check if item was dropped on the center box
+    if (this.centerBox) {
+      const centerBoxBounds = this.centerBox.getBounds();
+      const isInCenterBox = (
+        item.x >= centerBoxBounds.x &&
+        item.x <= centerBoxBounds.x + centerBoxBounds.width &&
+        item.y >= centerBoxBounds.y &&
+        item.y <= centerBoxBounds.y + centerBoxBounds.height
+      );
+
+      // If item is dropped on center box, disable physics and snap to center
+      if (isInCenterBox) {
+        this.handleCenterBoxDrop(item);
+        return;
+      }
+    }
+
     // Check if item was dropped from above the toilet's center Y position
     const toiletCenterY = this.toilet.y;
     const dropY = item.y;
@@ -2282,6 +2602,185 @@ export class Game extends Scene {
         (merge.items as any).makeItemFallToFloor(item);
       }
     }
+  }
+
+  private handleCenterBoxDrop(item: any) {
+    // Disable physics on the item
+    if (item.body) {
+      item.body.setEnable(false);
+    }
+    
+    // Disable any existing tweens/animations
+    this.tweens.killTweensOf(item);
+    
+    // Snap the item to the center of the center box
+    const centerX = this.centerBox.x;
+    const centerY = this.centerBox.y;
+    
+    // Animate the item snapping to the center
+    this.tweens.add({
+      targets: item,
+      x: centerX,
+      y: centerY,
+      duration: 300,
+      ease: 'Power2.easeOut',
+      onComplete: () => {
+        // Ensure the item stays at the center
+        item.x = centerX;
+        item.y = centerY;
+        
+        // Re-enable interactivity so items can be dragged out
+        item.setInteractive({ draggable: true });
+        
+        // Set a high depth so it appears above the center box and alientube
+        item.setDepth(2000);
+        
+        // Store the original position for potential return
+        item.centerBoxOriginalPosition = { x: centerX, y: centerY };
+        
+        // Add drag event listeners to handle dragging out of the center box
+        this.setupCenterBoxItemDragListeners(item);
+        
+        // Check if this item completes an alien order
+        this.checkAndCompleteAlienOrder(item);
+        
+        // Start the pulsing animation sequence
+        this.startItemPulseAnimation(item);
+      }
+    });
+  }
+
+  private checkAndCompleteAlienOrder(item: any) {
+    // Check if there's a current alien order and if this item matches it
+    if (!(this as any).alienOrderSystemInstance) {
+      return;
+    }
+    
+    const currentOrder = (this as any).alienOrderSystemInstance.getCurrentOrder();
+    if (!currentOrder) {
+      return;
+    }
+    
+    // Check if the item name matches the requested item in the order
+    const itemName = item.itemName;
+    const requestedItem = currentOrder.requestedItem;
+    
+    if (itemName === requestedItem) {
+      // Complete the order
+      const orderCompleted = (this as any).alienOrderSystemInstance.checkOrderCompletion(requestedItem);
+      if (orderCompleted) {
+        console.log(`Alien order completed with item: ${itemName}`);
+        // Mark that this item completed an order so tube retracts after animation
+        item.completedAlienOrder = true;
+      }
+    }
+  }
+
+  private startItemPulseAnimation(item: any) {
+    // Store original scale for reference
+    const originalScale = item.scale || 1;
+    let pulseCount = 0;
+    const maxPulses = 4;
+    
+    const pulseAnimation = () => {
+      if (pulseCount >= maxPulses) {
+        // Final animation: shrink and disappear
+        this.tweens.add({
+          targets: item,
+          scaleX: 0.1,
+          scaleY: 0.1,
+          duration: 500,
+          ease: 'Power2.easeIn',
+          onComplete: () => {
+            // Make item invisible and remove it
+            item.setVisible(false);
+            item.destroy();
+            
+            // If this item completed an alien order, retract the tube
+            if (item.completedAlienOrder) {
+              this.retractAlientubeToPortal();
+            }
+          }
+        });
+        return;
+      }
+      
+      // Grow larger
+      this.tweens.add({
+        targets: item,
+        scaleX: originalScale * 1.5,
+        scaleY: originalScale * 1.5,
+        duration: 200,
+        ease: 'Power2.easeOut',
+        onComplete: () => {
+          // Shrink back
+          this.tweens.add({
+            targets: item,
+            scaleX: originalScale,
+            scaleY: originalScale,
+            duration: 200,
+            ease: 'Power2.easeIn',
+            onComplete: () => {
+              pulseCount++;
+              // Continue to next pulse or final animation
+              pulseAnimation();
+            }
+          });
+        }
+      });
+    };
+    
+    // Start the pulse sequence
+    pulseAnimation();
+  }
+
+  private setupCenterBoxItemDragListeners(item: any) {
+    // Listen for drag start to track when item is being moved
+    item.on('dragstart', () => {
+      // Store that this item is being dragged from center box
+      item.isDraggingFromCenterBox = true;
+    });
+    
+    // Listen for drag end to check if item should return to center
+    item.on('dragend', () => {
+      if (item.isDraggingFromCenterBox) {
+        // Check if item was dropped outside the center box area
+        const centerBoxBounds = this.centerBox.getBounds();
+        const isOutsideCenterBox = (
+          item.x < centerBoxBounds.x ||
+          item.x > centerBoxBounds.x + centerBoxBounds.width ||
+          item.y < centerBoxBounds.y ||
+          item.y > centerBoxBounds.y + centerBoxBounds.height
+        );
+        
+        if (isOutsideCenterBox) {
+          // Item was dropped outside center box, return it to center
+          this.returnItemToCenterBox(item);
+        }
+        
+        // Reset the flag
+        item.isDraggingFromCenterBox = false;
+      }
+    });
+  }
+
+  private returnItemToCenterBox(item: any) {
+    // Animate the item back to the center of the center box
+    const centerX = this.centerBox.x;
+    const centerY = this.centerBox.y;
+    
+    this.tweens.add({
+      targets: item,
+      x: centerX,
+      y: centerY,
+      duration: 200,
+      ease: 'Power2.easeOut',
+      onComplete: () => {
+        // Ensure the item stays at the center
+        item.x = centerX;
+        item.y = centerY;
+      }
+    });
   }
 
   private makeItemFallToFloor(item: any) {

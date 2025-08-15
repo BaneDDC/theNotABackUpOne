@@ -18,6 +18,11 @@ export class AlienOrderSystem {
   private alienHead!: Phaser.GameObjects.Sprite
   private card!: Phaser.GameObjects.Sprite
   private container!: Phaser.GameObjects.Container
+  private alienSound!: Phaser.Sound.BaseSound
+  private alienSound2!: Phaser.Sound.BaseSound
+  private alienSound3!: Phaser.Sound.BaseSound
+  private alienSound4!: Phaser.Sound.BaseSound
+  private shakeTween?: Phaser.Tweens.Tween
   private isDragging: boolean = false
   private dragOffset: { x: number; y: number } = { x: 0, y: 0 }
   private floatingTween!: Phaser.Tweens.Tween
@@ -54,6 +59,11 @@ export class AlienOrderSystem {
 
   constructor(scene: Phaser.Scene) {
     this.scene = scene
+    // Initialize alien sounds
+    this.alienSound = this.scene.sound.add('aliensound', { volume: 0.6 })
+    this.alienSound2 = this.scene.sound.add('aliensound2', { volume: 0.6 })
+    this.alienSound3 = this.scene.sound.add('aliensound3', { volume: 0.6 })
+    this.alienSound4 = this.scene.sound.add('aliensound4', { volume: 0.6 })
     // Check tutorial completion status when system is created
     this.checkTutorialCompletionStatus()
   }
@@ -73,7 +83,10 @@ export class AlienOrderSystem {
     this.card.setDepth(1000)
 
     // Create the alien head positioned relative to the container (0,0)
-    this.alienHead = this.scene.add.sprite(50, 0, 'alien1')
+    // Start with a random alien texture
+    const alienTypes = ['alien1', 'alien2', 'alien3', 'alien4'] as const
+    const randomAlien = alienTypes[Math.floor(Math.random() * alienTypes.length)]
+    this.alienHead = this.scene.add.sprite(50, 0, randomAlien)
     this.alienHead.setDisplaySize(80, 80)
     this.alienHead.setDepth(1001)
 
@@ -176,6 +189,29 @@ export class AlienOrderSystem {
     console.log('Alien Order System: Sliding in')
     this.isVisible = true
     
+    // Play alien sound based on alien type and start shake animation
+    if (this.alienHead.texture.key === 'alien1' && this.alienSound) {
+      this.alienSound.play()
+      this.startAlienShake()
+      // Stop shake when sound ends
+      this.alienSound.once('complete', () => this.stopAlienShake())
+    } else if (this.alienHead.texture.key === 'alien2' && this.alienSound2) {
+      this.alienSound2.play()
+      this.startAlienShake()
+      // Stop shake when sound ends
+      this.alienSound2.once('complete', () => this.stopAlienShake())
+    } else if (this.alienHead.texture.key === 'alien3' && this.alienSound3) {
+      this.alienSound3.play()
+      this.startAlienShake()
+      // Stop shake when sound ends
+      this.alienSound3.once('complete', () => this.stopAlienShake())
+    } else if (this.alienHead.texture.key === 'alien4' && this.alienSound4) {
+      this.alienSound4.play()
+      this.startAlienShake()
+      // Stop shake when sound ends
+      this.alienSound4.once('complete', () => this.stopAlienShake())
+    }
+    
     // Stop any existing floating animation
     if (this.floatingTween) {
       this.floatingTween.stop()
@@ -257,6 +293,37 @@ export class AlienOrderSystem {
     })
   }
 
+  private startAlienShake(): void {
+    // Stop any existing shake animation
+    if (this.shakeTween) {
+      this.shakeTween.stop()
+    }
+
+    // Create a subtle shake effect for the alien head
+    this.shakeTween = this.scene.tweens.add({
+      targets: this.alienHead,
+      x: this.alienHead.x + 2,
+      y: this.alienHead.y + 1,
+      duration: 100,
+      ease: 'Sine.easeInOut',
+      yoyo: true,
+      repeat: -1,
+      onComplete: () => {
+        // Reset position when shake ends
+        this.alienHead.setPosition(50, 0)
+      }
+    })
+  }
+
+  private stopAlienShake(): void {
+    if (this.shakeTween) {
+      this.shakeTween.stop()
+      this.shakeTween = undefined
+    }
+    // Reset alien head position
+    this.alienHead.setPosition(50, 0)
+  }
+
   private setupSpacebarListener(): void {
     const spaceKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
     
@@ -309,6 +376,9 @@ export class AlienOrderSystem {
       this.pendingOrderTimer = undefined
     }
     
+    // Clean up shake animation
+    this.stopAlienShake()
+    
     this.container.destroy()
   }
 
@@ -318,6 +388,9 @@ export class AlienOrderSystem {
     if (!this.isTutorialCompleted) {
       return
     }
+    
+    // Change to a random alien type for each new order
+    this.setRandomAlien()
     
     // For the first 4 orders, only generate orders for items that can be made with 1 merge
     if (this.completedOrdersCount < this.FIRST_ORDERS_LIMIT) {

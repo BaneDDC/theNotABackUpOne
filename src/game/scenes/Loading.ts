@@ -93,6 +93,10 @@ export class Loading extends Scene {
     // Load essential sounds
     this.load.audio('toiletFlush', 'https://1jnxxd5hmjmhwwrc.public.blob.vercel-storage.com/foley-toilet-flush-without-tank-refill-238004-5QbPCVstF4Oln1bjmAlQVuNaOyf4fJ.mp3');
     this.load.audio('plungerSound', 'https://1jnxxd5hmjmhwwrc.public.blob.vercel-storage.com/plunge1-41079-qDvqpVQX79raem2TiioLxoJI01dP5L.mp3');
+    this.load.audio('aliensound', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/aliensound.mp3');
+    this.load.audio('aliensound2', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/aliensound2.mp3');
+    this.load.audio('aliensound3', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/aliensound3.mp3');
+    this.load.audio('aliensound4', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/aliensound4.mp3');
     
     // Load essential spritesheets
     this.load.spritesheet('grabber', 'https://1jnxxd5hmjmhwwrc.public.blob.vercel-storage.com/grabber-lUJTyIWnq9CjliEl5ja6cxUFIeG2LM.png', {
