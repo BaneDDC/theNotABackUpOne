@@ -32,6 +32,9 @@ export class StoreManager {
   constructor(scene: Scene) {
     this.scene = scene;
     this.createStoreUI();
+    
+    // Check if recycler is already purchased when store is created
+    this.checkRecyclerPurchaseStatus();
   }
 
   private createStoreUI() {
@@ -924,6 +927,7 @@ export class StoreManager {
       align: 'center'
     });
     text.setOrigin(0.5);
+    text.setName('label'); // Give it a name for easy access
     container.add(text);
     
     // Set depth to appear above background but below other UI
@@ -996,6 +1000,19 @@ export class StoreManager {
   }
 
   private attemptPurchase(itemName: string, cost: number) {
+    // Special check for Recycler - prevent purchasing if already sold
+    if (itemName === 'Recycler') {
+      const recyclerItem = this.placedItems.find(item => item.itemName === 'Recycler');
+      if (recyclerItem && recyclerItem.container) {
+        // Check if the text shows "SOLD" to determine if already purchased
+        const textChild = recyclerItem.container.getByName('label') || recyclerItem.container.getAt(1);
+        if (textChild && textChild instanceof Phaser.GameObjects.Text && textChild.text === 'SOLD') {
+          this.showNotification('Recycler is already purchased!', 0xe74c3c);
+          return;
+        }
+      }
+    }
+    
     // Get the goo counter from the Game scene
     const gameScene = this.scene as any;
     const gooCounter = gameScene.gooCounter;
@@ -1017,6 +1034,11 @@ export class StoreManager {
     
     // Spawn the purchased item in the game world
     this.spawnPurchasedItem(itemName);
+    
+    // Special handling for Recycler purchase - mark as sold and make non-interactive
+    if (itemName === 'Recycler') {
+      this.markRecyclerAsSold();
+    }
     
     // Show success notification
     this.showNotification(`Purchased ${itemName} for ${cost} Goo!`, 0x27ae60);
@@ -1540,6 +1562,46 @@ export class StoreManager {
     }
   }
 
+  private checkRecyclerPurchaseStatus() {
+    // Get the game scene to check if recycler is already active/visible
+    const gameScene = this.scene as any;
+    
+    if (gameScene.trashRecycler && gameScene.trashRecycler.active && gameScene.trashRecycler.visible) {
+      // Recycler is already purchased and visible, mark it as sold in the store
+      this.markRecyclerAsSold();
+    }
+  }
+
+  private markRecyclerAsSold() {
+    // Find the recycler item in the placedItems array
+    const recyclerItem = this.placedItems.find(item => item.itemName === 'Recycler');
+    
+    if (recyclerItem && recyclerItem.container) {
+      // Mark as sold by changing the text
+      const textChild = recyclerItem.container.getByName('label') || 
+                       recyclerItem.container.getAt(1); // Text is usually the second child
+      
+      if (textChild && textChild instanceof Phaser.GameObjects.Text) {
+        textChild.setText('SOLD');
+        textChild.setColor('#888888'); // Gray out the text
+      }
+      
+      // Make the container non-interactive
+      recyclerItem.container.disableInteractive();
+      
+      // Remove hover effects by removing event listeners
+      recyclerItem.container.off('pointerover');
+      recyclerItem.container.off('pointerout');
+      recyclerItem.container.off('pointerdown');
+      
+      // Add a visual indication that it's sold (gray out the sprite)
+      const spriteChild = recyclerItem.container.getAt(0); // Sprite is usually the first child
+      if (spriteChild && spriteChild instanceof Phaser.GameObjects.Sprite) {
+        spriteChild.setTint(0x888888); // Gray tint
+      }
+    }
+  }
+
   private showTrashRecycler(gameScene: any) {
     if (!gameScene.trashRecycler) {
 
@@ -1809,6 +1871,9 @@ export class StoreManager {
         item.container.setVisible(this.isUIVisible);
       }
     });
+    
+    // Check if recycler is already purchased and mark as sold if needed
+    this.checkRecyclerPurchaseStatus();
     
     // Animate store opening
     this.storeContainer.setAlpha(0);

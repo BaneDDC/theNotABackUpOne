@@ -454,6 +454,17 @@ export class EnemyManager {
     // Create splatter
     this.createGooSplatter(goo.x, goo.y, goo.scaleX);
     
+    // Check if this is the tutorial goo and complete tutorial if so
+    const gameScene = this.scene as any;
+    if (gameScene.tutorialPhase && gameScene.tutorialPhase === true) {
+      // This is the tutorial goo being destroyed - complete the tutorial
+      this.scene.time.delayedCall(500, () => {
+        if (gameScene.completeTutorial) {
+          gameScene.completeTutorial();
+        }
+      });
+    }
+    
     // Death animation
     this.scene.tweens.add({
       targets: goo,

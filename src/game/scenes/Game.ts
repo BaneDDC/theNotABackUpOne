@@ -484,8 +484,8 @@ export class Game extends Scene {
         if (merge.spawner) {
           merge.spawner.spawnPenaltyItem("Unstable Goo");
           
-          // Tutorial will now complete when player cleans the first goo puddle with the mop
-          // No need to auto-complete here
+          // Tutorial will now complete when the tutorial Unstable Goo is destroyed
+          // This allows players who know what to do to skip ahead and continue properly
         }
       });
     } else {
@@ -1905,14 +1905,8 @@ export class Game extends Scene {
     const cleanupCount = (splatter as any).cleanupCount;
     const maxCleanups = (splatter as any).maxCleanups || 3;
     
-    // Check if this is the first goo puddle being cleaned (tutorial completion trigger)
-    if (this.tutorialPhase && cleanupCount === 1) {
-      // This is the first cleanup of the first goo puddle during tutorial
-      // Complete the tutorial after a short delay to let the cleaning animation play
-      this.time.delayedCall(500, () => {
-        this.completeTutorial();
-      });
-    }
+    // Tutorial completion is now triggered when the tutorial Unstable Goo is destroyed
+    // No longer triggered by cleaning goo puddles
     
     if (cleanupCount >= maxCleanups) {
       // Remove splatter completely after 3rd swipe
@@ -1941,7 +1935,7 @@ export class Game extends Scene {
     // Create final cleaning effect
     this.createCleaningSparkle(splatter.x, splatter.y);
     
-    // Collect goo when splatter is completely removed (same as existing mop)
+    // Collect goo when splatter is completely removed (interactive mop gives 1 goo)
     const { collectGooFromCleaning } = require('../objects/GooCounter');
     collectGooFromCleaning();
     

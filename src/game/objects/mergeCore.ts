@@ -380,7 +380,7 @@ export class ItemManager {
         this.hideTooltip();
         
         // Check for mop cleaning splatters during drag
-        if (name === "Mop") {
+        if (name === "Mop" || name === "Wet Mop" || name === "Soapy Mop") {
           this.checkMopSplatterCleaning(mainObject);
         }
       });
@@ -441,14 +441,14 @@ export class ItemManager {
         const lastCleanTime = (splatter as any).lastCleanTime || 0;
         
         if (currentTime - lastCleanTime > 500) { // 500ms cooldown between cleans
-          this.cleanSplatter(splatter);
+          this.cleanSplatter(splatter, mop.itemName);
           (splatter as any).lastCleanTime = currentTime;
         }
       }
     });
   }
 
-  private cleanSplatter(splatter: Phaser.GameObjects.Sprite) {
+  private cleanSplatter(splatter: Phaser.GameObjects.Sprite, mopItemName?: string) {
     // Increment cleanup count
     (splatter as any).cleanupCount = ((splatter as any).cleanupCount || 0) + 1;
     
@@ -459,7 +459,7 @@ export class ItemManager {
     
     if (cleanupCount >= maxCleanups) {
       // Remove splatter completely after 3rd swipe
-      this.removeSplatter(splatter);
+      this.removeSplatter(splatter, mopItemName);
     } else {
       // Reduce opacity by 25%
       const newAlpha = originalAlpha * (1 - (cleanupCount * 0.25));
@@ -480,12 +480,36 @@ export class ItemManager {
     }
   }
 
-  private removeSplatter(splatter: Phaser.GameObjects.Sprite) {
+  private removeSplatter(splatter: Phaser.GameObjects.Sprite, mopItemName?: string) {
     // Create final cleaning effect
     this.createCleaningSparkle(splatter.x, splatter.y);
     
+    // Calculate goo reward based on mop type
+    let gooReward = 1; // Default for interactive mop
+    
+    if (mopItemName) {
+      // Check if it's a craftable mop and determine tier-based reward
+      if (mopItemName === "Mop") {
+        gooReward = 2; // Tier 1 mop
+      } else if (mopItemName === "Wet Mop" || mopItemName === "Soapy Mop") {
+        gooReward = 3; // Tier 2 mops
+      } else {
+        // For any other mop-like items, use tier-based calculation
+        const tier = getTier(mopItemName);
+        gooReward = tier + 1; // Tier 1 = 2 goo, Tier 2 = 3 goo, etc.
+      }
+    }
+    
     // Collect goo when splatter is completely removed
     collectGooFromCleaning();
+    
+    // Award additional goo based on mop type
+    if (gooReward > 1) {
+      // Award extra goo for craftable mops
+      for (let i = 1; i < gooReward; i++) {
+        collectGooFromCleaning();
+      }
+    }
     
     // Animate removal
     this.scene.tweens.add({

@@ -511,6 +511,7 @@ export class TrashRecycler {
     (this as any).simonProgressText = progressText;
     (this as any).simonOverlayContainer = overlayContainer;
     (this as any).simonBoxes = simonBoxes;
+    (this as any).simonGameEnded = false; // Add flag to track if game has ended
     
     // Start with Level 1
     this.startSimonLevel(currentLevel);
@@ -518,7 +519,7 @@ export class TrashRecycler {
     // Set up click handlers for the boxes
     simonBoxes.forEach((box, index) => {
       box.on('pointerdown', () => {
-        if ((this as any).simonIsPlayerTurn) {
+        if ((this as any).simonIsPlayerTurn && !(this as any).simonGameEnded) {
           this.handleSimonBoxClick(box, index, (this as any).simonBoxes, (this as any).simonOverlayContainer);
         }
       });
@@ -690,7 +691,10 @@ export class TrashRecycler {
     
     // Check if we've completed all 5 levels
     if (currentLevel >= 5) {
-      // All levels complete!
+      // All levels complete! Lock input immediately
+      (this as any).simonGameEnded = true;
+      (this as any).simonIsPlayerTurn = false;
+      
       this.scene.time.delayedCall(1500, () => {
         (this as any).simonStatusText.setText(`ALL LEVELS COMPLETE! ${(this as any).simonAccumulatedRewards} goo jars earned!`);
         this.scene.time.delayedCall(2000, () => {
@@ -709,6 +713,10 @@ export class TrashRecycler {
   private onSimonLevelFailure(): void {
     const currentLevel = (this as any).simonCurrentLevel;
     const accumulatedRewards = (this as any).simonAccumulatedRewards;
+    
+    // Lock input immediately on failure
+    (this as any).simonGameEnded = true;
+    (this as any).simonIsPlayerTurn = false;
     
     if (currentLevel === 1) {
       // Level 1 failure = 0 rewards

@@ -58,6 +58,104 @@ The game appears to be a sophisticated merge-clicker with tower defense elements
 
 **User**
 
+find and learn about the craftable mops and the permanent mop
+
+---
+
+**Cursor**
+
+I'll search for and learn about the craftable mops and permanent mop systems in the game.
+
+## Mop Systems Analysis
+
+Based on my search through the codebase, I've found two distinct mop systems:
+
+### 1. Craftable Mops
+
+#### Basic Mop (Tier 1)
+**Description**: "Professional floor dancer with a serious attitude about cleanliness."
+
+**Properties**:
+- **Tier 1 Item**: Basic mop available from the start
+- **Cleaning Function**: Can be dragged over goo splatters to clean them
+- **Goo Reward**: Awards **2 goo** when a splatter is fully cleaned
+
+#### Wet Mop (Tier 2)
+**Creation Recipe**: `Bucket + Mop = Wet Mop`
+
+**Description**: "A mop that's seen some stuff. Probably needs therapy."
+
+**Properties**:
+- **Tier 2 Item**: Created by combining a basic Mop with a Bucket
+- **Special Behavior**: When a Wet Mop is placed alone in the toilet and flushed, it spawns another Wet Mop instead of creating an enemy penalty
+- **Cleaning Function**: Can be dragged over goo splatters to clean them
+- **Goo Reward**: Awards **3 goo** when a splatter is fully cleaned
+- **Additional Recipes**: Can be combined with other items:
+  - `Battery + Wet Mop = Hazard: Shocking Puddle`
+  - `Coolant Tank + Wet Mop = Coolant Spill`
+  - `Toilet Paper + Wet Mop = Soggy Paper (Hazard: Slippery)`
+
+**Asset**: Uses `wet_mop_asset` texture with a futuristic Rick and Morty style design
+
+#### Soapy Mop (Tier 2)
+**Creation Recipe**: `Mop + Soap = Soapy Mop`
+
+**Description**: "Clean freak's dream tool. Leaves everything sparkling and judgmental."
+
+**Properties**:
+- **Tier 2 Item**: Created by combining a basic Mop with Soap
+- **Cleaning Function**: Can be dragged over goo splatters to clean them
+- **Goo Reward**: Awards **3 goo** when a splatter is fully cleaned
+- **Additional Recipes**: Can be combined with other items:
+  - `Reinforced Plunger + Soapy Mop = Sanitation Maul`
+
+**Asset**: Uses `soapy_mop_asset` texture
+
+### 2. Permanent Interactive Mop
+
+**Location**: Fixed position at coordinates (236, 356) in the game scene
+
+**Properties**:
+- **Permanent Fixture**: Always present in the game, cannot be moved permanently
+- **Draggable**: Players can drag it around to clean goo splatters
+- **Auto-Return**: When released, it springs back to its original position
+- **Cleaning Function**: Detects goo splatters within 40 pixels and cleans them
+- **Visual Effects**: Creates sparkle particles when cleaning
+- **Depth Management**: Set to depth -100 so items appear in front of it, but rises to depth 1000 when being dragged
+
+**Cleaning Mechanics**:
+- **Detection Radius**: 40 pixels around the mop
+- **Cooldown**: 500ms between cleaning actions on the same splatter
+- **Progressive Cleaning**: Each swipe reduces splatter opacity by 25% and slightly shrinks it
+- **Complete Removal**: After 3 swipes, the splatter is completely removed
+- **Goo Collection**: When a splatter is fully cleaned, it awards **1 goo** to the player
+
+**Asset**: Uses `interactive_mop_asset` texture from GitHub CDN
+
+**Technical Implementation**:
+- Managed in `Game.ts` with properties like `interactiveMop`, `isMopBeingDragged`
+- Uses Phaser's drag system with custom spring-back animation
+- Integrates with the goo splatter system for cleaning detection
+- Includes visual feedback with sparkle effects and opacity changes
+
+### Key Differences
+
+1. **Craftable vs Permanent**: The craftable mops (Basic Mop, Wet Mop, Soapy Mop) are items that can be merged and used in recipes, while the Interactive Mop is a permanent game fixture
+2. **Function**: All mops can now clean goo splatters, but they have different goo rewards based on their tier
+3. **Availability**: The Interactive Mop is always available, while craftable mops must be obtained through the merge system
+4. **Goo Rewards**: 
+   - Interactive Mop: 1 goo per splatter
+   - Basic Mop (Tier 1): 2 goo per splatter
+   - Wet Mop & Soapy Mop (Tier 2): 3 goo per splatter
+   - Higher tier mops: Tier + 1 goo per splatter
+5. **Behavior**: The Wet Mop has special toilet flush behavior (spawns itself instead of penalty), while the Interactive Mop is specifically designed for cleaning
+
+All mops now serve as cleaning tools with different efficiency levels, encouraging players to craft higher-tier mops for better goo rewards.
+
+---
+
+**User**
+
 I need to open this project in a dev server
 
 ---
