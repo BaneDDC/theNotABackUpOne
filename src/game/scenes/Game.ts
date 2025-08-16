@@ -56,6 +56,8 @@ export class Game extends Scene {
   private researchLogExpandedPosition = { x: 624.1456121888725, y: 259.6994420217029, scale: 0.35 }; // Clicked position
   private scoreImage!: Phaser.GameObjects.Image // Reference to score image
   private scoreImageScale: number = 1.0 // Current scale of score image
+  private currentScore: number = 0 // Current game score
+  private scoreText!: Phaser.GameObjects.Text // Score display text
   private interactiveMop!: Phaser.GameObjects.Sprite // Reference to interactive mop sprite
   private interactiveMopOriginalX: number = 400 // Initial X position
   private interactiveMopOriginalY: number = 300 // Initial Y position
@@ -148,6 +150,7 @@ export class Game extends Scene {
       this.tutorialPhase = true;
       this.portalCreated = false;
       this.FlushCount = 0;
+      this.currentScore = 0; // Initialize score for new game
     }
 
     if (!gameStateLoaded) {
@@ -236,6 +239,15 @@ export class Game extends Scene {
 
     this.events.on('toilet:flush', () => {
       this.showToiletPaperFlush();
+    });
+
+    // Listen for score events
+    this.events.on('score:add', (points: number) => {
+      this.addScore(points);
+    });
+
+    this.events.on('score:subtract', (points: number) => {
+      this.addScore(-points);
     });
   }
 
@@ -1443,7 +1455,37 @@ export class Game extends Scene {
     this.scoreImage.setName('score');
     this.scoreImage.setDepth(1000); // Higher depth to be in front of other objects
     
+            // Create score text display next to the score image
+        this.scoreText = this.add.text(905, 31.30, '0000000', {
+          fontSize: '36px',
+          color: '#228B22', // Grassy green color
+          fontFamily: 'Arial, sans-serif',
+          fontWeight: 'bold',
+          stroke: '#000000',
+          strokeThickness: 2
+        });
+    this.scoreText.setOrigin(0, 0.5); // Left-aligned, vertically centered
+    this.scoreText.setDepth(1001); // Higher depth than score image
+    this.scoreText.setName('scoreText');
+    
+    // Initialize score display
+    this.updateScoreDisplay();
 
+  }
+
+  private updateScoreDisplay() {
+    // Format score with leading zeros to maintain 7-digit display
+    const formattedScore = this.currentScore.toString().padStart(7, '0');
+    this.scoreText.setText(formattedScore);
+  }
+
+  private addScore(points: number) {
+    this.currentScore += points;
+    // Prevent score from going below 0
+    if (this.currentScore < 0) {
+      this.currentScore = 0;
+    }
+    this.updateScoreDisplay();
   }
 
   private setupInteractiveMop() {
@@ -2128,6 +2170,9 @@ export class Game extends Scene {
     const oozesplatSound = this.sound.add('oozesplat', { volume: 0.8 });
     oozesplatSound.play();
     
+    // Award score for destroying enemy
+    this.addScore(25);
+    
     // Destroy both objects with visual effects IMMEDIATELY
     this.destroyObjectWithEffect(enemy);
     this.destroyObjectWithEffect(hazard);
@@ -2288,6 +2333,7 @@ export class Game extends Scene {
     this.toiletPaperFlushTimer = null as any
     this.researchLog = null as any
     this.scoreImage = null as any
+    this.scoreText = null as any
 
     if (this.radioManager) {
       this.radioManager.destroy()
@@ -2308,6 +2354,7 @@ export class Game extends Scene {
         tutorialCompleted: !this.tutorialPhase,
         portalCreated: this.portalCreated,
         flushCount: this.FlushCount,
+        currentScore: this.currentScore, // Save current score
         items: this.getAllItemsState(),
         storeItems: this.getStoreItemsState(),
         gooCount: this.gooCounter ? this.gooCounter.getGooCount() : 0,
@@ -2356,6 +2403,7 @@ export class Game extends Scene {
       this.tutorialPhase = !gameState.tutorialCompleted;
       this.portalCreated = gameState.portalCreated || false;
       this.FlushCount = gameState.flushCount || 0;
+      this.currentScore = gameState.currentScore || 0; // Load saved score
 
       // Check if portal should exist based on save data
       const shouldHavePortal = gameState.portalExists !== undefined ? gameState.portalExists : gameState.portalCreated;

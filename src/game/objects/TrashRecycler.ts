@@ -841,6 +841,10 @@ export class TrashRecycler {
     // Get the number of goo jars to spawn
     const gooJarsToSpawn = (this as any).gooJarsToSpawn || 1;
     
+    // Award score for each jar of goo (10 points per jar)
+    const totalScore = gooJarsToSpawn * 10;
+    this.scene.events.emit("score:add", totalScore);
+    
     // Spawn multiple goo jars with slight delays
     for (let i = 0; i < gooJarsToSpawn; i++) {
       this.scene.time.delayedCall(i * 200, () => { // 200ms delay between each jar

@@ -21,6 +21,15 @@ type EnemySprite = Phaser.GameObjects.Sprite & {
   isStopped?: boolean;
   stopTimer?: Phaser.Time.TimerEvent;
   spawnSound?: Phaser.Sound.BaseSound;
+  // Confetti Storm specific properties
+  isConfettiStorm?: boolean;
+  targetGoo?: any;
+  // Goo Tornado specific properties
+  isGooTornado?: boolean;
+  spawnTimer?: Phaser.Time.TimerEvent;
+  destructionRadius?: number;
+  // Merge prevention property
+  isMerging?: boolean;
 };
 
 export class EnemyManager {
@@ -34,6 +43,14 @@ export class EnemyManager {
   public spawnEnemy(enemyType: Item, x: number, y: number): EnemySprite | null {
     if (enemyType === "Unstable Goo") {
       return this.spawnUnstableGoo(x, y);
+    }
+    
+    if (enemyType === "Confetti Storm") {
+      return this.spawnConfettiStorm(x, y);
+    }
+    
+    if (enemyType === "Enemy: Goo Tornado") {
+      return this.spawnGooTornado(x, y);
     }
     
     // Placeholder for other enemy types
@@ -73,6 +90,150 @@ export class EnemyManager {
     });
 
     return goo;
+  }
+
+  private spawnConfettiStorm(x: number, y: number): EnemySprite {
+    // Create the confetti storm sprite
+    let confetti: EnemySprite;
+    
+    // Try to use the asset if available, otherwise use fallback
+    if (this.scene.textures.exists('confetti_storm_asset')) {
+      confetti = this.scene.add.sprite(x, y, 'confetti_storm_asset') as EnemySprite;
+      confetti.setDisplaySize(108, 108);
+    } else {
+      // Fallback creation with white texture and colorful tint
+      confetti = this.scene.add.sprite(x, y, '__WHITE') as EnemySprite;
+      confetti.setDisplaySize(108, 108);
+      confetti.setTint(0xff69b4); // Pink tint for confetti
+    }
+    
+    // Add physics to the sprite
+    this.scene.physics.add.existing(confetti);
+    
+    // Set up Confetti Storm properties
+    this.setupConfettiStormProperties(confetti);
+    
+    // Add to enemies set
+    this.enemies.add(confetti);
+    
+    // Start AI after landing delay
+    this.scene.time.delayedCall(2000, () => {
+      if (confetti.active && confetti.hasLanded) {
+        this.startConfettiStormAI(confetti);
+      }
+    });
+
+    return confetti;
+  }
+
+  private spawnGooTornado(x: number, y: number): EnemySprite {
+    // Create the goo tornado sprite
+    let tornado: EnemySprite;
+    
+    // Try to use the asset if available, otherwise use fallback
+    if (this.scene.textures.exists('goo_tornado_asset')) {
+      tornado = this.scene.add.sprite(x, y, 'goo_tornado_asset') as EnemySprite;
+      tornado.setDisplaySize(108, 108);
+    } else {
+      // Fallback creation with white texture and tornado-like tint
+      tornado = this.scene.add.sprite(x, y, '__WHITE') as EnemySprite;
+      tornado.setDisplaySize(108, 108);
+      tornado.setTint(0x00ff88); // Green-cyan tint for tornado
+    }
+    
+    // Add physics to the sprite
+    this.scene.physics.add.existing(tornado);
+    
+    // Set up Goo Tornado properties
+    this.setupGooTornadoProperties(tornado);
+    
+    // Add to enemies set
+    this.enemies.add(tornado);
+    
+    // Start AI after landing delay
+    this.scene.time.delayedCall(2000, () => {
+      if (tornado.active && tornado.hasLanded) {
+        this.startGooTornadoAI(tornado);
+      }
+    });
+
+    return tornado;
+  }
+
+  private setupGooTornadoProperties(tornado: EnemySprite): void {
+    // Make interactive for clicking (but not draggable)
+    tornado.setInteractive();
+    
+    // Set up physics
+    const body = tornado.body as Phaser.Physics.Arcade.Body;
+    body.setCollideWorldBounds(true);
+    body.setBounce(0.3, 0.3);
+    
+    // Set enemy properties
+    tornado.itemName = "Enemy: Goo Tornado";
+    tornado.isGooTornado = true;
+    tornado.isEnemy = true;
+    tornado.isActive = true;
+    tornado.moveSpeed = 60; // 2x faster than unstable goo
+    tornado.hasLanded = false;
+    tornado.spawnTimer = null; // Timer for spawning goos
+    tornado.destructionRadius = 50; // Add destruction radius
+    
+    // Health system properties - random between 5-15 clicks
+    tornado.maxHealth = Phaser.Math.Between(5, 15);
+    tornado.currentHealth = tornado.maxHealth;
+    
+    // Add click handler for damaging the tornado
+    tornado.on('pointerdown', () => {
+      this.damageGooTornado(tornado);
+    });
+    
+    // Start spawning unstable goos immediately when created
+    this.startGooSpawning(tornado);
+    
+    // Mark as landed after delay
+    this.scene.time.delayedCall(2000, () => {
+      if (tornado.active) {
+        tornado.hasLanded = true;
+        this.correctTornadoFacing(tornado);
+      }
+    });
+  }
+
+  private setupConfettiStormProperties(confetti: EnemySprite): void {
+    // Make interactive for clicking (but not draggable)
+    confetti.setInteractive();
+    
+    // Set up physics
+    const body = confetti.body as Phaser.Physics.Arcade.Body;
+    body.setCollideWorldBounds(true);
+    body.setBounce(0.2, 0.2);
+    
+    // Set enemy properties
+    confetti.itemName = "Confetti Storm";
+    confetti.isConfettiStorm = true;
+    confetti.isEnemy = true;
+    confetti.targetGoo = null;
+    confetti.isActive = true;
+    confetti.moveSpeed = 50; // Faster than goo
+    confetti.hasLanded = false;
+    
+    // Health system properties
+    confetti.maxHealth = 3; // Fixed health instead of random
+    confetti.currentHealth = confetti.maxHealth;
+    
+    // Add click handler for damaging the confetti storm
+    confetti.on('pointerdown', () => {
+      this.damageConfettiStorm(confetti);
+    });
+    
+    // Mark as landed after delay
+    this.scene.time.delayedCall(2000, () => {
+      if (confetti.active) {
+        confetti.hasLanded = true;
+        this.correctConfettiFacing(confetti);
+      }
+    });
   }
 
   private setupUnstableGooProperties(goo: EnemySprite): void {
@@ -317,6 +478,369 @@ export class EnemyManager {
     });
   }
 
+  private damageConfettiStorm(confetti: EnemySprite): void {
+    if (!confetti.active) return;
+    
+    // Reduce health
+    confetti.currentHealth!--;
+    
+    // Visual feedback
+    this.scene.tweens.add({
+      targets: confetti,
+      tint: 0xff4442,
+      scaleX: confetti.scaleX * 1.1,
+      scaleY: confetti.scaleY * 1.1,
+      duration: 100,
+      yoyo: true,
+      onComplete: () => {
+        confetti.setTint(0xffffff);
+      }
+    });
+    
+    // Stop movement temporarily
+    this.stopConfettiStorm(confetti, 250);
+    
+    // Check if destroyed
+    if (confetti.currentHealth! <= 0) {
+      this.destroyConfettiStorm(confetti);
+    }
+  }
+
+  private stopConfettiStorm(confetti: EnemySprite, duration: number): void {
+    if (!confetti.active) return;
+    
+    const body = confetti.body as Phaser.Physics.Arcade.Body;
+    body.setVelocity(0, 0);
+    
+    this.scene.time.delayedCall(duration, () => {
+      if (confetti.active) {
+        this.resumeConfettiStormMovement(confetti);
+      }
+    });
+  }
+
+  private resumeConfettiStormMovement(confetti: EnemySprite): void {
+    if (!confetti.active) return;
+    
+    const target = confetti.targetGoo || this.findNearestGoo(confetti);
+    if (target && target.active) {
+      confetti.targetGoo = target;
+      this.moveConfettiTowardTarget(confetti, target);
+    }
+  }
+
+  private destroyConfettiStorm(confetti: EnemySprite): void {
+    // Stop movement immediately
+    const body = confetti.body as Phaser.Physics.Arcade.Body;
+    body.setVelocity(0, 0);
+    
+    // Play death sound
+    const oozesplatSound = this.scene.sound.add('oozesplat', { volume: 0.8 });
+    oozesplatSound.play();
+    
+    // Create splatter
+    this.createGooSplatter(confetti.x, confetti.y, confetti.scaleX);
+    
+    // Destroy immediately without animation delay
+    this.destroyEnemy(confetti);
+  }
+
+  private correctConfettiFacing(confetti: EnemySprite): void {
+    this.scene.tweens.add({
+      targets: confetti,
+      angle: 0,
+      duration: 500,
+      ease: 'Power2.easeOut'
+    });
+  }
+
+  private startConfettiStormAI(confetti: EnemySprite): void {
+    if (!confetti.active) return;
+    
+    // Find target goo
+    const nearestGoo = this.findNearestGoo(confetti);
+    confetti.targetGoo = nearestGoo;
+    
+    // Start movement
+    if (nearestGoo) {
+      this.moveConfettiTowardTarget(confetti, nearestGoo);
+    }
+    
+    // Repeat AI update
+    this.scene.time.delayedCall(100, () => { // More responsive AI
+      if (confetti.active) {
+        this.startConfettiStormAI(confetti);
+      }
+    });
+  }
+
+  private findNearestGoo(confetti: EnemySprite): any {
+    let nearestGoo: any = null;
+    let nearestDistance = Infinity;
+    
+    this.scene.children.list.forEach(child => {
+      if ((child as any).isUnstableGoo && child.active) {
+        const distance = Phaser.Math.Distance.Between(
+          confetti.x, confetti.y,
+          child.x, child.y
+        );
+        
+        if (distance < nearestDistance) {
+          nearestDistance = distance;
+          nearestGoo = child;
+        }
+      }
+    });
+    
+    return nearestGoo;
+  }
+
+  private moveConfettiTowardTarget(confetti: EnemySprite, target: any): void {
+    if (!confetti.active || !target.active) return;
+    
+    const body = confetti.body as Phaser.Physics.Arcade.Body;
+    const moveSpeed = confetti.moveSpeed!;
+    
+    const angle = Phaser.Math.Angle.Between(confetti.x, confetti.y, target.x, target.y);
+    
+    body.setVelocity(
+      Math.cos(angle) * moveSpeed,
+      Math.sin(angle) * moveSpeed
+    );
+    
+    // Check if close enough to merge
+    const distance = Phaser.Math.Distance.Between(
+      confetti.x, confetti.y,
+      target.x, target.y
+    );
+    
+    if (distance < 30) { // Close enough to merge
+      this.mergeConfettiWithGoo(confetti, target);
+    }
+  }
+
+  private mergeConfettiWithGoo(confetti: EnemySprite, goo: any): void {
+    // Prevent multiple merges from happening simultaneously
+    if ((confetti as any).isMerging || (goo as any).isMerging) {
+      return;
+    }
+    
+    // Mark both enemies as merging to prevent multiple calls
+    (confetti as any).isMerging = true;
+    (goo as any).isMerging = true;
+    
+    // When Confetti Storm merges with Unstable Goo, spawn ONLY a Goo Tornado
+    const newEnemyType = "Enemy: Goo Tornado";
+    
+    // Get the position where they merged (average X position, but use floor Y)
+    const mergeX = (confetti.x + goo.x) / 2;
+    const floorY = Phaser.Math.Between(400, 450); // Spawn on the floor
+    
+    // Destroy Confetti Storm immediately
+    this.destroyConfettiStorm(confetti);
+    
+    // Destroy Unstable Goo immediately
+    this.destroyUnstableGoo(goo);
+    
+    // Spawn the Goo Tornado at the floor position immediately
+    this.spawnEnemy(newEnemyType as any, mergeX, floorY);
+  }
+  
+
+
+  private damageGooTornado(tornado: EnemySprite): void {
+    if (!tornado.active) return;
+    
+    // Reduce health
+    tornado.currentHealth!--;
+    
+    // Visual feedback
+    this.scene.tweens.add({
+      targets: tornado,
+      tint: 0xff4442,
+      scaleX: tornado.scaleX * 1.1,
+      scaleY: tornado.scaleY * 1.1,
+      duration: 100,
+      yoyo: true,
+      onComplete: () => {
+        tornado.setTint(0xffffff);
+      }
+    });
+    
+    // Stop movement temporarily
+    this.stopGooTornado(tornado, 250);
+    
+    // Check if destroyed
+    if (tornado.currentHealth! <= 0) {
+      this.destroyGooTornado(tornado);
+    }
+  }
+
+  private stopGooTornado(tornado: EnemySprite, duration: number): void {
+    if (!tornado.active) return;
+    
+    const body = tornado.body as Phaser.Physics.Arcade.Body;
+    body.setVelocity(0, 0);
+    
+    this.scene.time.delayedCall(duration, () => {
+      if (tornado.active) {
+        this.resumeGooTornadoMovement(tornado);
+      }
+    });
+  }
+
+  private resumeGooTornadoMovement(tornado: EnemySprite): void {
+    if (!tornado.active) return;
+    
+    // Tornado moves side-to-side randomly on the floor
+    const randomX = Phaser.Math.Between(100, 1000);
+    const floorY = Phaser.Math.Between(400, 450);
+    this.moveGooTornadoToPosition(tornado, randomX, floorY);
+  }
+
+  private destroyGooTornado(tornado: EnemySprite): void {
+    // Stop movement
+    const body = tornado.body as Phaser.Physics.Arcade.Body;
+    body.setVelocity(0, 0);
+    
+    // Stop spawning
+    if (tornado.spawnTimer) {
+      tornado.spawnTimer.destroy();
+      tornado.spawnTimer = null;
+    }
+    
+    // Play death sound
+    const oozesplatSound = this.scene.sound.add('oozesplat', { volume: 0.8 });
+    oozesplatSound.play();
+    
+    // Create splatter
+    this.createGooSplatter(tornado.x, tornado.y, tornado.scaleX);
+    
+    // Death animation
+    this.scene.tweens.add({
+      targets: tornado,
+      scaleX: 0,
+      scaleY: 0,
+      alpha: 0,
+      angle: tornado.angle + 360,
+      duration: 500,
+      ease: 'Power2.easeIn',
+      onComplete: () => {
+        this.destroyEnemy(tornado);
+      }
+    });
+    
+    // Visual effect
+    this.scene.tweens.add({
+      targets: tornado,
+      tint: 0x00ff88,
+      duration: 100,
+      yoyo: true,
+      repeat: 2
+    });
+  }
+
+  private correctTornadoFacing(tornado: EnemySprite): void {
+    this.scene.tweens.add({
+      targets: tornado,
+      angle: 0,
+      duration: 500,
+      ease: 'Power2.easeOut'
+    });
+  }
+
+  private startGooTornadoAI(tornado: EnemySprite): void {
+    if (!tornado.active) return;
+    
+    // Move side-to-side randomly on the floor (around Y position 400-450)
+    const randomX = Phaser.Math.Between(100, 1000);
+    const floorY = Phaser.Math.Between(400, 450);
+    this.moveGooTornadoToPosition(tornado, randomX, floorY);
+    
+    // Repeat AI update
+    this.scene.time.delayedCall(3000, () => { // Move every 3 seconds
+      if (tornado.active) {
+        this.startGooTornadoAI(tornado);
+      }
+    });
+  }
+
+  private moveGooTornadoToPosition(tornado: EnemySprite, targetX: number, targetY: number): void {
+    if (!tornado.active) return;
+    
+    const body = tornado.body as Phaser.Physics.Arcade.Body;
+    const moveSpeed = tornado.moveSpeed!;
+    
+    // Only move horizontally (side-to-side), keep Y position fixed
+    const direction = targetX > tornado.x ? 1 : -1;
+    
+    body.setVelocity(
+      direction * moveSpeed,
+      0 // No Y movement - stay on the floor
+    );
+  }
+
+  private startGooSpawning(tornado: EnemySprite): void {
+    if (!tornado.active) return;
+    
+    // Spawn an unstable goo every 5 seconds
+    tornado.spawnTimer = this.scene.time.addEvent({
+      delay: 5000,
+      loop: true,
+      callback: () => {
+        if (tornado.active) {
+          this.spawnUnstableGooFromTornado(tornado);
+        }
+      }
+    });
+  }
+
+  private spawnUnstableGooFromTornado(tornado: EnemySprite): void {
+    if (!tornado.active) return;
+    
+    // Spawn position near the tornado but on the floor
+    const spawnX = tornado.x + Phaser.Math.Between(-50, 50);
+    const floorY = Phaser.Math.Between(400, 450); // Spawn directly on the floor
+    
+    // Create the goo sprite directly without using ItemManager to avoid circular dependency
+    let goo: EnemySprite;
+    
+    // Try to use the asset if available, otherwise use fallback
+    if (this.scene.textures.exists('unstable_goo_asset')) {
+      goo = this.scene.add.sprite(spawnX, floorY, 'unstable_goo_asset') as EnemySprite;
+      goo.setDisplaySize(108, 108);
+    } else {
+      // Fallback creation with white texture and green tint
+      goo = this.scene.add.sprite(spawnX, floorY, '__WHITE') as EnemySprite;
+      goo.setDisplaySize(108, 108);
+      goo.setTint(0x44ff44); // Green tint
+    }
+    
+    // Add physics to the sprite
+    this.scene.physics.add.existing(goo);
+    
+    // Set up Unstable Goo properties (same as regular spawn but with immediate landing)
+    this.setupUnstableGooProperties(goo);
+    
+    // Mark as immediately landed since it's spawned on the floor
+    goo.hasLanded = true;
+    
+    // Add to enemies set
+    this.enemies.add(goo);
+    
+    // Start AI immediately since it's already on the floor
+    this.startUnstableGooAI(goo);
+    
+    // Create a small visual effect
+    this.scene.tweens.add({
+      targets: goo,
+      scaleX: goo.scaleX * 1.2,
+      scaleY: goo.scaleY * 1.2,
+      duration: 200,
+      yoyo: true
+    });
+  }
+
   private createGooSplatter(x: number, y: number, gooScale: number): void {
     const splatter = this.scene.add.sprite(x, y, 'goo_splatter');
     
@@ -390,6 +914,8 @@ export class EnemyManager {
       if ((child as any).itemName && 
           (child as any).itemName !== "Unstable Goo" && 
           !(child as any).isUnstableGoo &&
+          (child as any).itemName !== "Enemy: Goo Tornado" &&
+          !(child as any).isGooTornado &&
           child.active) {
         
         const distance = Phaser.Math.Distance.Between(
@@ -431,6 +957,8 @@ export class EnemyManager {
         if ((child as any).itemName && 
             (child as any).itemName !== "Unstable Goo" && 
             !(child as any).isUnstableGoo &&
+            (child as any).itemName !== "Enemy: Goo Tornado" &&
+            !(child as any).isGooTornado &&
             child.active) {
           
           const asset = child as any;
