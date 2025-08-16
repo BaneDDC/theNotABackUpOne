@@ -1158,40 +1158,7 @@ export class PortalSpawner {
     }
   }
 
-  private setupConfettiStormEnemy(confetti: LabeledRect) {
-    // Make Confetti Storm interactive for clicking (but not draggable)
-    confetti.setInteractive();
-    
-    // Set up physics body for movement
-    const body = confetti.body as Phaser.Physics.Arcade.Body;
-    body.setCollideWorldBounds(true);
-    body.setBounce(0.2, 0.2);
-    
-    // Add custom properties for enemy behavior
-    (confetti as any).isConfettiStorm = true;
-    (confetti as any).targetGoo = null;
-    (confetti as any).isActive = true;
-    (confetti as any).moveSpeed = 50; // Faster than goo
-    (confetti as any).hasLanded = false;
-    
-    // Add health system properties
-    (confetti as any).maxHealth = 3; // Fixed health instead of random
-    (confetti as any).currentHealth = (confetti as any).maxHealth;
-    
-    // Add click handler for damaging the confetti storm
-    confetti.on('pointerdown', () => {
-      this.damageConfettiStorm(confetti);
-    });
-    
-    // Wait for confetti to land before starting AI behavior
-    this.scene.time.delayyCall(2000, () => {
-      if (confetti.active) {
-        (confetti as any).hasLanded = true;
-        this.correctConfettiFacing(confetti);
-        this.startConfettiStormAI(confetti);
-      }
-    });
-  }
+
 
   private setupGooTornado(tornado: LabeledRect) {
     // Make Goo Tornado interactive for clicking (but not draggable)
@@ -1232,50 +1199,7 @@ export class PortalSpawner {
     });
   }
 
-  private setupConfettiStormAI(confetti: LabeledRect) {
-    if (!confetti.active || !(confetti as any).isActive) return;
-    
-    // Import hazard detection function
-    const { isHazard } = require('../config/mergeDataFull');
-    
-    // Find target goo or nearest goo
-    let targetGoo = (confetti as any).targetGoo;
-    if (!targetGoo || !targetGoo.active) {
-      targetGoo = this.findNearestGoo(confetti);
-      (confetti as any).targetGoo = targetGoo;
-    }
-    
-    // Move toward target goo if found
-    if (targetGoo && targetGoo.active) {
-      this.moveConfettiTowardTarget(confetti, targetGoo);
-      
-      // Check if close enough to merge
-      const distance = Phaser.Math.Distance.Between(
-        confetti.x, confetti.y,
-        targetGoo.x, targetGoo.y
-      );
-      
-      if (distance < 30) { // Close enough to merge
-        // Check if the target is actually a hazard
-        if (isHazard(targetGoo.itemName!)) {
 
-          this.destroyConfettiFromHazard(confetti, targetGoo);
-          return; // Exit AI loop
-        } else {
-          // Normal merge with actual goo
-          this.mergeConfettiWithGoo(confetti, targetGoo);
-          return; // Exit AI loop
-        }
-      }
-    }
-    
-    // Continue AI if still active
-    if (confetti.active && (confetti as any).isActive) {
-      this.scene.time.delayedCall(100, () => { // Reduced from 2000 to 100 for more responsive AI
-        this.startConfettiStormAI(confetti);
-      });
-    }
-  }
 
 
 
@@ -1592,8 +1516,10 @@ export class MergeToilet {
             this.items.destroy(singleItem)
             
             // Spawn Unstable Goo from portal as penalty
-
             this.scene.events.emit("toilet:penalty", "Unstable Goo")
+            
+            // Penalize score for enemy spawn
+            this.scene.events.emit("score:subtract", 5);
           },
         })
         return
@@ -1627,6 +1553,13 @@ export class MergeToilet {
 
       // Emit event for successful merge (this will spawn from portal)
       this.scene.events.emit("toilet:merged", result)
+      
+      // Award score based on tier
+      const tier = getTier(result);
+      if (tier >= 2) {
+        const scorePoints = Math.pow(10, tier - 1); // Tier 2 = 10, Tier 3 = 100, Tier 4 = 1000, etc.
+        this.scene.events.emit("score:add", scorePoints);
+      }
     } else {
       // Invalid merge - destroy items and spawn Unstable Goo as penalty
       this.scene.tweens.add({
@@ -1639,8 +1572,10 @@ export class MergeToilet {
           this.items.destroy(bObj)
           
           // Spawn Unstable Goo from portal as penalty
-
           this.scene.events.emit("toilet:penalty", "Unstable Goo")
+          
+          // Penalize score for enemy spawn
+          this.scene.events.emit("score:subtract", 5);
         },
       })
     }

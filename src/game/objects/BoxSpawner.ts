@@ -574,6 +574,13 @@ export class BoxSpawner {
     item.on('dragstart', () => {
       // Stop the pulse effect when item is picked up
       this.scene.tweens.killTweensOf(item);
+      // Bring item to front while dragging (higher than alientube)
+      item.setDepth(2000);
+    });
+    
+    // Return to normal depth when dragging ends
+    item.on('dragend', () => {
+      item.setDepth(1000); // Return to normal depth (same as alientube)
     });
 
     // Also stop pulsing after 30 seconds to prevent indefinite pulsing

@@ -27,8 +27,10 @@ export class Loading extends Scene {
   }
 
   create() {
-    // Assets are loaded in preload, so we can proceed to main menu
-    this.scene.start('MainMenu');
+    // Transition to splash screen after loading
+    this.time.delayedCall(1000, () => {
+      this.scene.start('Splash');
+    });
   }
 
   private createLoadingUI() {
@@ -36,33 +38,27 @@ export class Loading extends Scene {
     const centerY = this.scale.height / 2;
 
     // Create background
-    this.add.rectangle(centerX, centerY, this.scale.width, this.scale.height, 0x2c3e50);
+    this.add.rectangle(centerX, centerY, this.scale.width, this.scale.height, 0x000000);
 
-    // Title
-    const title = this.add.text(centerX, centerY - 150, "TOILET MERGE GAME", {
-      fontSize: "48px",
-      color: "#ffffff",
-      fontStyle: "bold"
-    });
-    title.setOrigin(0.5);
+    // Title removed
 
     // Loading bar background
     this.loadingBarBg = this.add.graphics();
     this.loadingBarBg.fillStyle(0x34495e);
-    this.loadingBarBg.fillRoundedRect(centerX - 200, centerY - 20, 400, 40, 10);
+    this.loadingBarBg.fillRoundedRect(centerX - 200, centerY + 50, 400, 40, 10);
 
     // Loading bar
     this.loadingBar = this.add.graphics();
 
     // Loading text
-    this.loadingText = this.add.text(centerX, centerY - 60, "Loading... 0%", {
+    this.loadingText = this.add.text(centerX, centerY + 10, "Loading... 0%", {
       fontSize: "24px",
       color: "#ffffff"
     });
     this.loadingText.setOrigin(0.5);
 
     // Current file text
-    this.currentFileText = this.add.text(centerX, centerY + 40, "", {
+    this.currentFileText = this.add.text(centerX, centerY + 110, "", {
       fontSize: "16px",
       color: "#bdc3c7",
       wordWrap: { width: 600 }
@@ -82,6 +78,15 @@ export class Loading extends Scene {
   private loadCriticalAssets() {
     // Load essential UI and gameplay assets first
     this.load.image('newmenu', 'https://raw.githubusercontent.com/localgod13/merge-assets/main/newmenu.png');
+    this.load.image('startgame', 'https://raw.githubusercontent.com/localgod13/merge-assets/main/startgame.png');
+    this.load.image('loadgame', 'https://raw.githubusercontent.com/localgod13/merge-assets/main/loadgame.png');
+    this.load.image('newgame', 'https://raw.githubusercontent.com/localgod13/merge-assets/main/newgame.png');
+    this.load.image('deletenew', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/deletenew.png');
+    this.load.image('cancel', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/cancel.png');
+    this.load.image('flytoxic', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/flytoxic.png');
+    this.load.image('lefthand', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/lefthand.png');
+    this.load.image('righthand', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/righthand.png');
+    this.load.image('portalflush', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/portalflush.png');
     this.load.audio('mainMenuMusic', 'https://raw.githubusercontent.com/localgod13/merge-assets/main/alien.mp3');
     
     // Load essential gameplay assets
@@ -93,6 +98,10 @@ export class Loading extends Scene {
     // Load essential sounds
     this.load.audio('toiletFlush', 'https://1jnxxd5hmjmhwwrc.public.blob.vercel-storage.com/foley-toilet-flush-without-tank-refill-238004-5QbPCVstF4Oln1bjmAlQVuNaOyf4fJ.mp3');
     this.load.audio('plungerSound', 'https://1jnxxd5hmjmhwwrc.public.blob.vercel-storage.com/plunge1-41079-qDvqpVQX79raem2TiioLxoJI01dP5L.mp3');
+    this.load.audio('aliensound', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/aliensound.mp3');
+    this.load.audio('aliensound2', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/aliensound2.mp3');
+    this.load.audio('aliensound3', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/aliensound3.mp3');
+    this.load.audio('aliensound4', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/aliensound4.mp3');
     
     // Load essential spritesheets
     this.load.spritesheet('grabber', 'https://1jnxxd5hmjmhwwrc.public.blob.vercel-storage.com/grabber-lUJTyIWnq9CjliEl5ja6cxUFIeG2LM.png', {
@@ -171,6 +180,9 @@ export class Loading extends Scene {
     this.load.image('tpblink', 'https://1jnxxd5hmjmhwwrc.public.blob.vercel-storage.com/tpblink-klxAZeU4J0dsOZt3UUIQyLwPbuAOin.webp');
     this.load.image('tp', 'https://1jnxxd5hmjmhwwrc.public.blob.vercel-storage.com/tp-b7pUbOjci6HEDoUu6XqNg7kruvwZsa.png');
     
+    // Load MR hint asset
+    this.load.image('mr_hint_asset', 'https://1jnxxd5hmjmhwwrc.public.blob.vercel-storage.com/bg-removed-Chibi%20art%20style%20with%20no%20anthropomorphisms%20.%20rick%20and%20morty%20style%20%22MR-pBpl6TprHz9Z4lklHW9MurWgPYZnPR.%20HINT%22%20a%20button%20for%20giving%20hints%2C%20no%20shadows%20no%20background-2');
+    
     // Load recycler assets
     this.load.image('trash_recycler', 'https://1jnxxd5hmjmhwwrc.public.blob.vercel-storage.com/recycler4-TXaXLDoHFjOCCWWV2axZvt5XEqx29n.png');
     this.load.image('recycler3', 'https://1jnxxd5hmjmhwwrc.public.blob.vercel-storage.com/recycler3-nOhNttyz6urdLhU3kBwz5py05YkW6w.png');
@@ -180,6 +192,15 @@ export class Loading extends Scene {
     
     // Load recycler sound
     this.load.audio('recsound', 'https://1jnxxd5hmjmhwwrc.public.blob.vercel-storage.com/recsound-HB8WEyVnRhp3Vmk6oZBtP11dpUVlLT.mp3');
+    
+    // Load tube sound for alientube movement
+    this.load.audio('tubesound', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/tubesound.mp3');
+    
+    // Load vacuum sound for when alientube is fully extended
+    this.load.audio('vacuum', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/vacuum.mp3');
+    
+    // Load suck sound for when items are placed in the alientube
+    this.load.audio('suck', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/suck.mp3');
     
     // Load jar of goo asset
     this.load.image('jar_of_goo', 'https://1jnxxd5hmjmhwwrc.public.blob.vercel-storage.com/bg-removed-a%20futuristic%2090s-00s%20rick%20and%20morty%20style%20%22jar%20of%20goo%22%20no%20shadow%2C%20must%20have%20the%20name%20on%20it-7IxyGZuzQ9NpAIh575MQQ22EEEg0QR.-3');
@@ -275,7 +296,7 @@ export class Loading extends Scene {
     let count = 0;
     
     // Critical assets
-    count += 8; // newmenu, mainMenuMusic, toilet, plunger, sink, towel, grabber spritesheet, toiletFlush, plungerSound
+    count += 17; // newmenu, startgame, loadgame, newgame, deletenew, cancel, flytoxic, lefthand, righthand, portalflush, mainMenuMusic, toilet, plunger, sink, towel, grabber spritesheet, toiletFlush, plungerSound
     
     // Non-critical assets
     count += 4; // bg1, bg2, bg3, bg4
@@ -297,7 +318,7 @@ export class Loading extends Scene {
     count += 1; // jar_of_goo
     count += 1; // mainMenuMusic (duplicate, but needed)
     count += 5; // mop_asset, loose_wires_asset, rubber_duck_asset, sock_asset, duct_tape_asset, toolkit_asset
-    count += 15; // Additional item assets (coolant_tank_asset, screw_asset, etc.)
+    count += 16; // Additional item assets (coolant_tank_asset, screw_asset, etc.) + mr_hint_asset
     count += 3; // radio, buy_now, store
     count += 1; // store audio
     count += 25; // Boot2 assets
@@ -333,7 +354,7 @@ export class Loading extends Scene {
       this.loadingBar.fillStyle(0x3498db);
       this.loadingBar.fillRoundedRect(
         this.scale.width / 2 - 200, 
-        this.scale.height / 2 - 20, 
+        this.scale.height / 2 + 50, 
         400 * progress, 
         40, 
         10

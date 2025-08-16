@@ -52,7 +52,15 @@ export class PauseMenu extends Scene {
     cursor.setDepth(100000); // Increased from 50000 to 100000
     cursor.setScrollFactor(0);
     cursor.setVisible(true);
-    cursor.setOrigin(0, 0); // Set origin to upper left corner
+    // Apply handedness preference - always flip vertically like Game scene
+    const handedness = this.registry.get('playerHandedness') || 'right';
+    if (handedness === 'left') {
+      cursor.setFlipX(true);
+      cursor.setFlipY(true);
+    } else {
+      cursor.setFlipY(true); // Match Game scene cursor behavior
+    }
+    cursor.setOrigin(0.5, 0.5); // Set origin to center
     
     // Set up pointer tracking for this scene
     this.input.on('pointermove', (pointer: Phaser.Input.Pointer) => {

@@ -75,8 +75,20 @@ export class SceneManager {
     this.customCursor.setDepth(99999);
     this.customCursor.setScrollFactor(0);
     this.customCursor.setVisible(true);
-    this.customCursor.setFlipY(true);
-    this.customCursor.setOrigin(0, 0);
+    
+    // Apply handedness preference
+    const handedness = this.scene.registry.get('playerHandedness') || 'right';
+    if (handedness === 'left') {
+      // For left-handed, flip the cursor horizontally
+      this.customCursor.setFlipX(true);
+      this.customCursor.setFlipY(true);
+    } else {
+      // For right-handed, only flip vertically (default behavior)
+      this.customCursor.setFlipX(false);
+      this.customCursor.setFlipY(true);
+    }
+    
+    this.customCursor.setOrigin(0.5, 0.5);
   }
 
   public recreateCustomCursor() {
