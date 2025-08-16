@@ -76,6 +76,9 @@ export class EnemyManager {
     // Add physics to the sprite
     this.scene.physics.add.existing(goo);
     
+    // Set enemy depth to 11
+    goo.setDepth(11);
+    
     // Set up Unstable Goo properties
     this.setupUnstableGooProperties(goo);
     
@@ -110,6 +113,9 @@ export class EnemyManager {
     // Add physics to the sprite
     this.scene.physics.add.existing(confetti);
     
+    // Set enemy depth to 11
+    confetti.setDepth(11);
+    
     // Set up Confetti Storm properties
     this.setupConfettiStormProperties(confetti);
     
@@ -143,6 +149,9 @@ export class EnemyManager {
     
     // Add physics to the sprite
     this.scene.physics.add.existing(tornado);
+    
+    // Set enemy depth to 11
+    tornado.setDepth(11);
     
     // Set up Goo Tornado properties
     this.setupGooTornadoProperties(tornado);
