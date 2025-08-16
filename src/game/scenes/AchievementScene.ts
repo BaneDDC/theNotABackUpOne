@@ -9,6 +9,7 @@ export class AchievementScene extends Scene {
   private scrollContainer!: Phaser.GameObjects.Container;
   private achievements: Achievement[] = [];
   private closeButton!: Phaser.GameObjects.Container;
+  private completionText!: Phaser.GameObjects.Text;
   private isDragging: boolean = false;
   private dragStartY: number = 0;
   private scrollStartY: number = 0;
@@ -36,12 +37,12 @@ export class AchievementScene extends Scene {
     this.container.add(title);
 
     // Create completion percentage
-    const completionText = this.add.text(0, -260, '', {
+    this.completionText = this.add.text(0, -260, '', {
       fontSize: '18px',
       color: '#cccccc'
     });
-    completionText.setOrigin(0.5);
-    this.container.add(completionText);
+    this.completionText.setOrigin(0.5);
+    this.container.add(this.completionText);
 
     // Create scrollable container for achievements
     this.scrollContainer = this.add.container(0, -200);
@@ -164,10 +165,7 @@ export class AchievementScene extends Scene {
     const completed = this.achievements.filter(a => a.completed).length;
     const percentage = total > 0 ? Math.round((completed / total) * 100) : 0;
     
-    const completionText = this.container.getAt(2) as Phaser.GameObjects.Text;
-    if (completionText) {
-      completionText.setText(`${completed}/${total} Achievements (${percentage}%)`);
-    }
+    this.completionText.setText(`${completed}/${total} Achievements (${percentage}%)`);
   }
 
   private createAchievementItems() {
