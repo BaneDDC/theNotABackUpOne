@@ -373,6 +373,9 @@ export class BoxSpawner {
 
     this.hasOpened = true;
 
+    // Emit achievement event for box opening
+    this.scene.events.emit('achievement:box_opened');
+
     // Remove interactivity to prevent multiple clicks
     this.box.disableInteractive();
 

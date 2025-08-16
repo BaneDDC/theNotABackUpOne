@@ -8,6 +8,7 @@ import { Bestiary } from "./scenes/Bestiary"
 import { PauseMenu } from "./scenes/PauseMenu"
 import { PlungeMiniGame } from "./scenes/PlungeMiniGame"
 import { ItemCatalog } from "./scenes/ItemCatalog"
+import { AchievementScene } from "./scenes/AchievementScene"
 import { AUTO, Game, Scale, Types } from "phaser"
 
 // Find out more information about the Game Config at:
@@ -32,7 +33,7 @@ const config: Types.Core.GameConfig = {
     }
   },
   // New streamlined flow: Loading -> Splash -> MainMenu -> Game
-  scene: [Loading, Splash, MainMenu, MainGame, CollisionEditor, RecipeOverlay, Bestiary, PauseMenu, PlungeMiniGame, ItemCatalog],
+  scene: [Loading, Splash, MainMenu, MainGame, CollisionEditor, RecipeOverlay, Bestiary, PauseMenu, PlungeMiniGame, ItemCatalog, AchievementScene],
 }
 
 const StartGame = (parent: string) => {

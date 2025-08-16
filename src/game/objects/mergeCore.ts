@@ -452,6 +452,9 @@ export class ItemManager {
     // Increment cleanup count
     (splatter as any).cleanupCount = ((splatter as any).cleanupCount || 0) + 1;
     
+    // Emit achievement event for splatter cleaning
+    this.scene.events.emit('achievement:splatter_cleaned', mopItemName || 'Unknown Mop');
+    
     // Calculate new alpha (reduce by 25% each time)
     const originalAlpha = (splatter as any).originalAlpha || 0.8;
     const cleanupCount = (splatter as any).cleanupCount;
@@ -1574,9 +1577,15 @@ export class MergeToilet {
       if (bestiaryScene && (bestiaryScene as any).addDiscovery) {
         (bestiaryScene as any).addDiscovery(a, b, result)
       }
+      
+      // Emit achievement event for discovery
+      this.scene.events.emit('achievement:discovery', a, b, result);
 
       // Emit event for successful merge (this will spawn from portal)
       this.scene.events.emit("toilet:merged", result)
+      
+      // Emit achievement event for merge completion
+      this.scene.events.emit('achievement:merge_complete');
       
       // Award score based on tier
       const tier = getTier(result);

@@ -686,6 +686,9 @@ export class TrashRecycler {
     const currentLevel = (this as any).simonCurrentLevel;
     (this as any).simonAccumulatedRewards += 1;
     
+    // Emit achievement event for recycler completion
+    this.scene.events.emit('achievement:recycler_complete');
+    
     // Show success message
     (this as any).simonStatusText.setText(`Level ${currentLevel} Complete! +1 goo jar`);
     

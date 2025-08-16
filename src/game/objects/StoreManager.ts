@@ -1032,6 +1032,10 @@ export class StoreManager {
     // Deduct the cost
     gooCounter.setGooCount(currentGoo - cost);
     
+    // Emit achievement events
+    this.scene.events.emit('achievement:goo_spent', cost);
+    this.scene.events.emit('achievement:store_purchase', itemName);
+    
     // Spawn the purchased item in the game world
     this.spawnPurchasedItem(itemName);
     

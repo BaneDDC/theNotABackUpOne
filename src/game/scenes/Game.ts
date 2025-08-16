@@ -9,6 +9,7 @@ import { EnemyManager } from "../objects/EnemyManager"
 import { StoreManager } from "../objects/StoreManager"
 import { PauseButton } from "../objects/ui/PauseButton"
 import { AlienOrderSystem } from "../objects/ui/AlienOrderSystem"
+import { AchievementManager } from "../objects/AchievementManager"
 
 export class Game extends Scene {
   private toiletSound!: Phaser.Sound.BaseSound
@@ -87,6 +88,9 @@ export class Game extends Scene {
   // Center box properties
   private centerBox!: Phaser.GameObjects.Rectangle
   private centerBoxScale: number = 1.0
+  
+  // Achievement system
+  private achievementManager!: AchievementManager
 
   constructor() {
     super("Game")
@@ -134,6 +138,7 @@ export class Game extends Scene {
     this.setupTrashRecycler()
     this.setupEnemyManager()
     this.setupStoreManager()
+    this.setupAchievementManager()
     this.setupResearchLog()
     this.setupScoreImage()
     this.setupInteractiveMop()
@@ -262,6 +267,8 @@ export class Game extends Scene {
         if (mergeForReward && mergeForReward.items && (mergeForReward.items as any).spawnTier2Reward) {
           (mergeForReward.items as any).spawnTier2Reward();
         }
+        // Emit achievement event for perfect plunger result
+        this.events.emit('achievement:plunger_perfect');
         break
       case 'red':
         this.FlushCount = Math.max(0, this.FlushCount - 1)
@@ -410,6 +417,9 @@ export class Game extends Scene {
     
     this.portalCreated = true;
     
+    // Emit achievement event for portal creation
+    this.events.emit('achievement:portal_created');
+    
     // Create portal animation - forward then backward (34 frames total, ignoring last 2)
     const forwardFrames = []
     const backwardFrames = []
@@ -505,6 +515,9 @@ export class Game extends Scene {
     }
     
     this.tutorialPhase = false;
+    
+    // Emit achievement event for tutorial completion
+    this.events.emit('achievement:tutorial_complete');
     
     // Start normal portal spawning
     const merge = this.getMergeSystem();
@@ -1322,6 +1335,10 @@ export class Game extends Scene {
     this.storeManager = new StoreManager(this)
   }
 
+  private setupAchievementManager() {
+    this.achievementManager = new AchievementManager(this)
+  }
+
   private setupResearchLog() {
     // Check if the research log image loaded successfully
     if (this.textures.exists('researchlog')) {
@@ -1900,6 +1917,9 @@ export class Game extends Scene {
     // Increment cleanup count (same as existing mop system)
     (splatter as any).cleanupCount = ((splatter as any).cleanupCount || 0) + 1;
     
+    // Emit achievement event for splatter cleaning (interactive mop)
+    this.events.emit('achievement:splatter_cleaned', 'Interactive Mop');
+    
     // Calculate new alpha (reduce by 25% each time)
     const originalAlpha = (splatter as any).originalAlpha || 0.8;
     const cleanupCount = (splatter as any).cleanupCount;
@@ -2341,6 +2361,9 @@ export class Game extends Scene {
   }
 
   private saveGameState() {
+    // Emit achievement event for game saving
+    this.events.emit('achievement:game_saved');
+    
     try {
       const gameState = {
         tutorialCompleted: !this.tutorialPhase,

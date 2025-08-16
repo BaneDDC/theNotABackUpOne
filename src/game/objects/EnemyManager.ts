@@ -1174,6 +1174,10 @@ export class EnemyManager {
   }
 
   public destroyEnemy(enemy: EnemySprite): void {
+    // Emit achievement event for enemy defeat
+    const enemyType = enemy.itemName || 'Unknown';
+    this.scene.events.emit('achievement:enemy_defeated', enemyType);
+    
     // Remove from enemies set
     this.enemies.delete(enemy);
     

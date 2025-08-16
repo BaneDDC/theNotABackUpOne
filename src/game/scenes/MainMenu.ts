@@ -169,8 +169,47 @@ export class MainMenu extends Scene {
     // Create handedness selection UI
     this.createHandednessSelectionUI(centerX, centerY);
 
+    // Create achievement button
+    this.createAchievementButton(centerX, centerY);
+
     // Create save game choice UI (initially hidden)
     this.createSaveGameChoiceUI(centerX, centerY);
+  }
+
+  private createAchievementButton(centerX: number, centerY: number) {
+    // Create achievement button (trophy icon)
+    const achievementButton = this.add.circle(centerX, centerY + 200, 30, 0xf39c12);
+    achievementButton.setDepth(2);
+    achievementButton.setInteractive();
+    
+    // Add trophy icon (using text as placeholder)
+    const trophyText = this.add.text(centerX, centerY + 200, '🏆', {
+      fontSize: '24px'
+    });
+    trophyText.setOrigin(0.5);
+    trophyText.setDepth(3);
+    
+    // Add hover effects
+    achievementButton.on('pointerover', () => {
+      achievementButton.setScale(1.1);
+      this.input.setDefaultCursor('pointer');
+    });
+    
+    achievementButton.on('pointerout', () => {
+      achievementButton.setScale(1.0);
+      this.input.setDefaultCursor('default');
+    });
+    
+    // Add click handler
+    achievementButton.on('pointerdown', () => {
+      this.scene.start('AchievementScene');
+    });
+    
+    // Add click handler to text as well
+    trophyText.setInteractive();
+    trophyText.on('pointerdown', () => {
+      this.scene.start('AchievementScene');
+    });
   }
 
   private createHandednessSelectionUI(centerX: number, centerY: number) {

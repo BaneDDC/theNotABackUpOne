@@ -211,6 +211,9 @@ export class GooCounter {
     this.updateDisplay();
     this.saveGooCount();
     this.playCollectionEffect();
+    
+    // Emit achievement event for goo collection
+    this.scene.events.emit('achievement:goo_collected', amount);
   }
 
   private updateDisplay() {
