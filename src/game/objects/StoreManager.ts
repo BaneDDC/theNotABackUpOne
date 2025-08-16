@@ -1604,6 +1604,20 @@ export class StoreManager {
         spriteChild.setTint(0x888888); // Gray tint
       }
     }
+    
+    // Automatically save the game state when recycler is purchased
+    this.saveGameStateAfterRecyclerPurchase();
+  }
+
+  private saveGameStateAfterRecyclerPurchase() {
+    // Get the game scene and trigger a save
+    const gameScene = this.scene as any;
+    if (gameScene && gameScene.saveGameState) {
+      // Add a small delay to ensure the recycler state is properly updated
+      this.scene.time.delayedCall(100, () => {
+        gameScene.saveGameState();
+      });
+    }
   }
 
   private showTrashRecycler(gameScene: any) {
@@ -1693,6 +1707,22 @@ export class StoreManager {
     });
 
     // Use scene-level pointer events for better drag handling
+    let startX = 0;
+    let startY = 0;
+    
+    const onPointerDown = (pointer: Phaser.Input.Pointer) => {
+      if (this.isStoreOpen) {
+        this.isDraggingItem = true;
+        this.draggedItem = container;
+        startX = pointer.x;
+        startY = pointer.y;
+        
+        // Visual feedback
+        container.setScale(1.1);
+        container.setAlpha(0.8);
+      }
+    };
+    
     const onPointerMove = (pointer: Phaser.Input.Pointer) => {
       if (this.isDraggingItem && this.draggedItem === container && this.isStoreOpen) {
         // Calculate movement delta
@@ -1729,10 +1759,12 @@ export class StoreManager {
     };
 
     // Store references to remove later
+    (container as any).onPointerDown = onPointerDown;
     (container as any).onPointerMove = onPointerMove;
     (container as any).onPointerUp = onPointerUp;
 
     // Add scene-level listeners
+    this.scene.input.on('pointerdown', onPointerDown);
     this.scene.input.on('pointermove', onPointerMove);
     this.scene.input.on('pointerup', onPointerUp);
   }
