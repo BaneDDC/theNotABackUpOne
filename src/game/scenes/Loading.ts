@@ -180,6 +180,9 @@ export class Loading extends Scene {
     this.load.image('tpblink', 'https://1jnxxd5hmjmhwwrc.public.blob.vercel-storage.com/tpblink-klxAZeU4J0dsOZt3UUIQyLwPbuAOin.webp');
     this.load.image('tp', 'https://1jnxxd5hmjmhwwrc.public.blob.vercel-storage.com/tp-b7pUbOjci6HEDoUu6XqNg7kruvwZsa.png');
     
+    // Load MR hint asset
+    this.load.image('mr_hint_asset', 'https://1jnxxd5hmjmhwwrc.public.blob.vercel-storage.com/bg-removed-Chibi%20art%20style%20with%20no%20anthropomorphisms%20.%20rick%20and%20morty%20style%20%22MR-pBpl6TprHz9Z4lklHW9MurWgPYZnPR.%20HINT%22%20a%20button%20for%20giving%20hints%2C%20no%20shadows%20no%20background-2');
+    
     // Load recycler assets
     this.load.image('trash_recycler', 'https://1jnxxd5hmjmhwwrc.public.blob.vercel-storage.com/recycler4-TXaXLDoHFjOCCWWV2axZvt5XEqx29n.png');
     this.load.image('recycler3', 'https://1jnxxd5hmjmhwwrc.public.blob.vercel-storage.com/recycler3-nOhNttyz6urdLhU3kBwz5py05YkW6w.png');
@@ -315,7 +318,7 @@ export class Loading extends Scene {
     count += 1; // jar_of_goo
     count += 1; // mainMenuMusic (duplicate, but needed)
     count += 5; // mop_asset, loose_wires_asset, rubber_duck_asset, sock_asset, duct_tape_asset, toolkit_asset
-    count += 15; // Additional item assets (coolant_tank_asset, screw_asset, etc.)
+    count += 16; // Additional item assets (coolant_tank_asset, screw_asset, etc.) + mr_hint_asset
     count += 3; // radio, buy_now, store
     count += 1; // store audio
     count += 25; // Boot2 assets

@@ -31,15 +31,8 @@ export class HintButton {
   }
 
   private loadHintAsset() {
-    // Load the MR. HINT asset
-    if (!this.scene.textures.exists('mr_hint_asset')) {
-      this.scene.load.image('mr_hint_asset', 'https://1jnxxd5hmjmhwwrc.public.blob.vercel-storage.com/bg-removed-Chibi%20art%20style%20with%20no%20anthropomorphisms%20.%20rick%20and%20morty%20style%20%22MR-pBpl6TprHz9Z4lklHW9MurWgPYZnPR.%20HINT%22%20a%20button%20for%20giving%20hints%2C%20no%20shadows%20no%20background-2');
-      
-      // Start loading if not already in progress
-      if (!this.scene.load.isLoading()) {
-        this.scene.load.start();
-      }
-    }
+    // MR hint asset is now preloaded in Loading scene, so this method is no longer needed
+    // The asset will be available immediately when HintButton is created
   }
 
   private createButton() {
@@ -52,28 +45,9 @@ export class HintButton {
     this.updateButtonAppearance();
     this.button.add(this.buttonBg);
 
-    // Create button sprite instead of text
-    if (this.scene.textures.exists('mr_hint_asset')) {
-      this.buttonText = this.scene.add.sprite(0, -5, 'mr_hint_asset') as any;
-      (this.buttonText as any).setScale(0.08); // Increased from 0.05 to 0.08 since filtering will make it clearer
-    } else {
-      // Fallback to emoji if asset isn't loaded yet
-      this.buttonText = this.scene.add.text(0, -5, "💡", {
-        fontSize: "24px",
-        color: "#ffffff"
-      });
-      this.buttonText.setOrigin(0.5);
-      
-      // Try to replace with sprite once asset loads
-      this.scene.load.once('complete', () => {
-        if (this.scene.textures.exists('mr_hint_asset')) {
-          this.buttonText.destroy();
-          this.buttonText = this.scene.add.sprite(0, -5, 'mr_hint_asset') as any;
-          (this.buttonText as any).setScale(0.08); // Also increased here
-          this.button.add(this.buttonText);
-        }
-      });
-    }
+    // Create button sprite - asset is preloaded so it will always exist
+    this.buttonText = this.scene.add.sprite(0, -5, 'mr_hint_asset') as any;
+    (this.buttonText as any).setScale(0.08); // Increased from 0.05 to 0.08 since filtering will make it clearer
     
     this.button.add(this.buttonText);
 

@@ -105,6 +105,7 @@ export class Game extends Scene {
     this.load.image('alien4', 'https://raw.githubusercontent.com/localgod13/merge-assets/main/alien4.webp');
     this.load.image('card', 'https://raw.githubusercontent.com/localgod13/merge-assets/main/card.webp');
     this.load.image('alientube', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/alientube.png');
+    this.load.image('tutcom', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/tutcom.png');
     
     // Add error handling for image loading
     this.load.on('loaderror', (file: any) => {
@@ -511,17 +512,14 @@ export class Game extends Scene {
       merge.spawner.start(5000); // Spawn tier 1 items every 5 seconds
     }
     
-    // Show tutorial completion message
-    const message = this.add.text(this.scale.width / 2, this.scale.height / 2, 
-      "Tutorial Complete!\\nNormal gameplay begins now.", {
-      fontSize: "24px",
-      color: "#27ae60",
-      backgroundColor: "#000000",
-      padding: { x: 20, y: 10 },
-      align: "center"
-    });
+    // Show tutorial completion image
+    const message = this.add.image(this.scale.width / 2, this.scale.height / 2, 'tutcom');
     message.setOrigin(0.5);
     message.setDepth(3000);
+    
+    // Scale the image appropriately (1024x1024 original, scale to reasonable size)
+    const targetSize = 200; // Scale to 200x200 pixels
+    message.setDisplaySize(targetSize, targetSize);
     
     // Fade out message after 3 seconds
     this.time.delayedCall(3000, () => {
@@ -1607,7 +1605,7 @@ export class Game extends Scene {
       // Get tube sound duration and play it
       let animationDuration = 3000; // Default fallback duration
       if (this.cache.audio.exists('tubesound')) {
-        const tubeSound = this.sound.add('tubesound', { volume: 0.6 });
+        const tubeSound = this.sound.add('tubesound', { volume: 1.0 });
         tubeSound.play();
         
         // Get the audio duration and convert to milliseconds, but make it faster
@@ -1648,7 +1646,7 @@ export class Game extends Scene {
           // Play vacuum sound when tube is fully extended - loop until retracted
           if (this.cache.audio.exists('vacuum')) {
             this.vacuumSound = this.sound.add('vacuum', { 
-              volume: 0.6,
+              volume: 1.0,
               loop: true // Loop continuously
             });
             this.vacuumSound.play();
@@ -1673,7 +1671,7 @@ export class Game extends Scene {
       // Get tube sound duration and play it
       let animationDuration = 2000; // Default fallback duration
       if (this.cache.audio.exists('tubesound')) {
-        const tubeSound = this.sound.add('tubesound', { volume: 0.6 });
+        const tubeSound = this.sound.add('tubesound', { volume: 1.0 });
         tubeSound.play();
         
         // Get the audio duration and convert to milliseconds, but make it faster
@@ -2724,7 +2722,7 @@ export class Game extends Scene {
   private handleCenterBoxDrop(item: any) {
     // Play suck sound when item is placed in the tube
     if (this.cache.audio.exists('suck')) {
-      const suckSound = this.sound.add('suck', { volume: 0.6 });
+      const suckSound = this.sound.add('suck', { volume: 1.0 });
       suckSound.play();
       console.log('Playing suck sound - item placed in alientube');
     } else {
