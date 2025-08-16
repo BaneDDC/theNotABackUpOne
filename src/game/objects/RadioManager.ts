@@ -535,8 +535,12 @@ export class RadioManager {
     this.currentVolume = Phaser.Math.Clamp(this.currentVolume, 0, 1);
     
     // Update volume text
-    if (this.volumeText) {
-      this.volumeText.setText(`${Math.round(this.currentVolume * 100)}%`);
+    if (this.controlPanel && this.volumeText && this.volumeText.active) {
+      try {
+        this.volumeText.setText(`${Math.round(this.currentVolume * 100)}%`);
+      } catch (error) {
+        console.warn('Error updating volume text:', error);
+      }
     }
     
     // Apply volume to game (when we have music)
@@ -584,13 +588,18 @@ export class RadioManager {
   }
 
   private updateSongDisplay() {
-    if (this.songText) {
-      if (this.isPoweredOn) {
-        this.songText.setText(this.songList[this.currentSong]);
-        this.songText.setColor("#ffff00"); // Yellow color when powered on
-      } else {
-        this.songText.setText("RADIO OFF");
-        this.songText.setColor("#7f8c8d");
+    // Only update if the control panel exists and songText is active
+    if (this.controlPanel && this.songText && this.songText.active) {
+      try {
+        if (this.isPoweredOn) {
+          this.songText.setText(this.songList[this.currentSong]);
+          this.songText.setColor("#ffff00"); // Yellow color when powered on
+        } else {
+          this.songText.setText("RADIO OFF");
+          this.songText.setColor("#7f8c8d");
+        }
+      } catch (error) {
+        console.warn('Error updating song display:', error);
       }
     }
   }
@@ -633,15 +642,19 @@ export class RadioManager {
     }
     
     // Add visual feedback for song change
-    if (this.songText) {
-      this.scene.tweens.add({
-        targets: this.songText,
-        scaleX: 1.1,
-        scaleY: 1.1,
-        duration: 150,
-        yoyo: true,
-        ease: 'Power2.easeOut'
-      });
+    if (this.controlPanel && this.songText && this.songText.active) {
+      try {
+        this.scene.tweens.add({
+          targets: this.songText,
+          scaleX: 1.1,
+          scaleY: 1.1,
+          duration: 150,
+          yoyo: true,
+          ease: 'Power2.easeOut'
+        });
+      } catch (error) {
+        console.warn('Error adding song change animation:', error);
+      }
     }
   }
 
@@ -700,8 +713,12 @@ export class RadioManager {
     if (!this.isPoweredOn) return; // Don't allow volume changes when powered off
     
     this.currentVolume = Phaser.Math.Clamp(volume, 0, 1);
-    if (this.volumeText) {
-      this.volumeText.setText(`${Math.round(this.currentVolume * 100)}%`);
+    if (this.controlPanel && this.volumeText && this.volumeText.active) {
+      try {
+        this.volumeText.setText(`${Math.round(this.currentVolume * 100)}%`);
+      } catch (error) {
+        console.warn('Error updating volume text:', error);
+      }
     }
     this.applyVolume();
     
