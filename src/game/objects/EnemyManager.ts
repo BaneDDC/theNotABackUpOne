@@ -438,17 +438,25 @@ export class EnemyManager {
         const asset = child as any;
         // Aggressively stop ALL tweens and effects on this asset
         this.scene.tweens.killTweensOf(asset);
-        // Force reset all visual properties
-        asset.setTint(0xffffff);
-        asset.setAlpha(1);
-        asset.setScale(asset.scaleX, asset.scaleY);
+        
+        // Check if the asset has the required methods before calling them
+        if (asset.setTint && typeof asset.setTint === 'function') {
+          asset.setTint(0xffffff);
+        }
+        if (asset.setAlpha && typeof asset.setAlpha === 'function') {
+          asset.setAlpha(1);
+        }
+        if (asset.setScale && typeof asset.setScale === 'function') {
+          asset.setScale(asset.scaleX, asset.scaleY);
+        }
+        if (asset.clearTint && typeof asset.clearTint === 'function') {
+          asset.clearTint();
+        }
+        
         // Clear any custom properties that might be causing issues
         if (asset.dissolveTween) {
           asset.dissolveTween = undefined;
         }
-        // Force a complete visual reset
-        asset.clearTint();
-        asset.setAlpha(1);
       }
     });
     
