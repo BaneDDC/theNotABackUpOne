@@ -1,5 +1,6 @@
 import { Game as MainGame } from "./scenes/Game"
 import { Loading } from "./scenes/Loading"
+import { Splash } from "./scenes/Splash"
 import { MainMenu } from "./scenes/MainMenu"
 import { CollisionEditor } from "./objects/hitBox"
 import { RecipeOverlay } from "./scenes/RecipeOverlay"
@@ -30,8 +31,8 @@ const config: Types.Core.GameConfig = {
       debug: false
     }
   },
-  // New streamlined flow: Loading -> MainMenu -> Game
-  scene: [Loading, MainMenu, MainGame, CollisionEditor, RecipeOverlay, Bestiary, PauseMenu, PlungeMiniGame, ItemCatalog],
+  // New streamlined flow: Loading -> Splash -> MainMenu -> Game
+  scene: [Loading, Splash, MainMenu, MainGame, CollisionEditor, RecipeOverlay, Bestiary, PauseMenu, PlungeMiniGame, ItemCatalog],
 }
 
 const StartGame = (parent: string) => {

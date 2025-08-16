@@ -643,9 +643,14 @@ export class AlienOrderSystem {
     const gameScene = this.scene as any
     if (gameScene.getGooCounter) {
       const gooCounter = gameScene.getGooCounter()
-      if (gooCounter && gooCounter.addGoo) {
-        gooCounter.addGoo(amount)
+      if (gooCounter && gooCounter.collectGoo) {
+        gooCounter.collectGoo(amount)
+        console.log(`Successfully added ${amount} goo to player`)
+      } else {
+        console.log(`Goo counter found but collectGoo method missing`)
       }
+    } else {
+      console.log(`getGooCounter method not found on game scene`)
     }
     
     // Fallback: log the goo earned

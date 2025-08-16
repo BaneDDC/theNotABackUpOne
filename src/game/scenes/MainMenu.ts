@@ -5,15 +5,15 @@ import { Scene } from "phaser";
 export class MainMenu extends Scene {
   private backgroundImage!: Phaser.GameObjects.Image;
   private mainMenuMusic!: Phaser.Sound.BaseSound;
-  private startButton!: Phaser.GameObjects.Graphics;
+  private startButton!: Phaser.GameObjects.Image;
   private startButtonText!: Phaser.GameObjects.Text;
   private saveGameContainer!: Phaser.GameObjects.Container;
-  private continueButton!: Phaser.GameObjects.Graphics;
-  private newGameButton!: Phaser.GameObjects.Graphics;
+  private continueButton!: Phaser.GameObjects.Image;
+  private newGameButton!: Phaser.GameObjects.Image;
   private saveGameChoice: 'continue' | 'new' | null = null;
   private hasSaveData: boolean = false;
-  private leftHandedButton!: Phaser.GameObjects.Graphics;
-  private rightHandedButton!: Phaser.GameObjects.Graphics;
+  private leftHandedButton!: Phaser.GameObjects.Image;
+  private rightHandedButton!: Phaser.GameObjects.Image;
   private leftHandedText!: Phaser.GameObjects.Text;
   private rightHandedText!: Phaser.GameObjects.Text;
   private handednessLabel!: Phaser.GameObjects.Text;
@@ -115,43 +115,33 @@ export class MainMenu extends Scene {
     );
     darkOverlay.setDepth(1);
 
-    // Create title
-    const title = this.add.text(centerX, centerY - 150, "TOILET MERGE GAME", {
-      fontSize: "48px",
-      color: "#ffffff",
-      fontStyle: "bold"
-    });
-    title.setOrigin(0.5);
-    title.setDepth(2);
+    // Create title image
+    const titleImage = this.add.image(centerX, centerY - 150, 'portalflush');
+    titleImage.setDisplaySize(300, 300); // Scale the 1024x1024 image down to fit properly
+    titleImage.setDepth(2);
 
     // Create start button
-    this.startButton = this.add.rectangle(centerX, centerY + 50, 300, 80, 0x27ae60);
-    this.startButton.setStrokeStyle(4, 0x2ecc71);
+    this.startButton = this.add.image(centerX, centerY + 50, 'startgame');
+    this.startButton.setDisplaySize(250, 250); // Scaled down from 300x300 to 250x250
     this.startButton.setDepth(2);
     this.startButton.setInteractive();
 
-    // Create button text
-    this.startButtonText = this.add.text(centerX, centerY + 50, "START GAME", {
-      fontSize: "24px",
-      color: "#ffffff",
-      fontStyle: "bold"
-    });
-    this.startButtonText.setOrigin(0.5);
-    this.startButtonText.setDepth(3);
+    // Button text removed - using image button instead
 
     // Add hover effects
     this.startButton.on('pointerover', () => {
-      this.startButton.setFillStyle(0x2ecc71);
+      this.startButton.setTint(0x2ecc71);
       this.input.setDefaultCursor('pointer');
     });
 
     this.startButton.on('pointerout', () => {
-      this.startButton.setFillStyle(0x27ae60);
+      this.startButton.setTint(0xffffff);
       this.input.setDefaultCursor('default');
     });
 
     // Add click handler to start game
     this.startButton.on('pointerdown', () => {
+      this.startButton.setVisible(false);
       this.onStartGameClick();
     });
 
@@ -172,52 +162,30 @@ export class MainMenu extends Scene {
     const savedHandedness = localStorage.getItem('player_handedness');
     this.selectedHandedness = (savedHandedness as 'left' | 'right') || 'right';
 
-    // Create label
-    this.handednessLabel = this.add.text(centerX, centerY + 150, "SELECT HANDEDNESS:", {
-      fontSize: "18px",
-      color: "#ffffff",
-      fontStyle: "bold"
-    });
-    this.handednessLabel.setOrigin(0.5);
-    this.handednessLabel.setDepth(2);
+    // Handedness label removed
 
     // Create left-handed button
-    this.leftHandedButton = this.add.rectangle(centerX - 100, centerY + 200, 150, 50, 0x95a5a6);
-    this.leftHandedButton.setStrokeStyle(2, 0x7f8c8d);
+    this.leftHandedButton = this.add.image(50, this.scale.height - 50, 'lefthand');
+    this.leftHandedButton.setDisplaySize(75, 75); // Reduced to half size (75x75)
     this.leftHandedButton.setDepth(2);
     this.leftHandedButton.setInteractive();
 
-    this.leftHandedText = this.add.text(centerX - 100, centerY + 200, "LEFT HANDED", {
-      fontSize: "14px",
-      color: "#ffffff",
-      fontStyle: "bold"
-    });
-    this.leftHandedText.setOrigin(0.5);
-    this.leftHandedText.setDepth(3);
+    // Left handed text removed
 
     // Create right-handed button
-    this.rightHandedButton = this.add.rectangle(centerX + 100, centerY + 200, 150, 50, 0x27ae60);
-    this.rightHandedButton.setStrokeStyle(2, 0x2ecc71);
+    this.rightHandedButton = this.add.image(this.scale.width - 50, this.scale.height - 50, 'righthand');
+    this.rightHandedButton.setDisplaySize(75, 75); // Reduced to half size (75x75)
     this.rightHandedButton.setDepth(2);
     this.rightHandedButton.setInteractive();
 
-    this.rightHandedText = this.add.text(centerX + 100, centerY + 200, "RIGHT HANDED", {
-      fontSize: "14px",
-      color: "#ffffff",
-      fontStyle: "bold"
-    });
-    this.rightHandedText.setOrigin(0.5);
-    this.rightHandedText.setDepth(3);
+    // Right handed text removed
 
     // Set initial button states
     this.updateHandednessButtonStates();
 
     // Add button interactions
     this.leftHandedButton.on('pointerover', () => {
-      if (this.selectedHandedness !== 'left') {
-        this.leftHandedButton.setFillStyle(0x7f8c8d);
-        this.input.setDefaultCursor('pointer');
-      }
+      this.input.setDefaultCursor('pointer');
     });
 
     this.leftHandedButton.on('pointerout', () => {
@@ -232,10 +200,7 @@ export class MainMenu extends Scene {
     });
 
     this.rightHandedButton.on('pointerover', () => {
-      if (this.selectedHandedness !== 'right') {
-        this.rightHandedButton.setFillStyle(0x2ecc71);
-        this.input.setDefaultCursor('pointer');
-      }
+      this.input.setDefaultCursor('pointer');
     });
 
     this.rightHandedButton.on('pointerout', () => {
@@ -251,16 +216,38 @@ export class MainMenu extends Scene {
   }
 
   private updateHandednessButtonStates() {
+    // Stop any existing tweens
+    this.tweens.killTweensOf(this.leftHandedButton);
+    this.tweens.killTweensOf(this.rightHandedButton);
+    
     if (this.selectedHandedness === 'left') {
-      this.leftHandedButton.setFillStyle(0x27ae60);
-      this.leftHandedButton.setStrokeStyle(2, 0x2ecc71);
-      this.rightHandedButton.setFillStyle(0x95a5a6);
-      this.rightHandedButton.setStrokeStyle(2, 0x7f8c8d);
+      this.leftHandedButton.setScale(0.1, 0.1); // Normal size
+      this.rightHandedButton.setScale(0.1, 0.1); // Normal size
+      
+      // Add pulsing animation to selected button
+      this.tweens.add({
+        targets: this.leftHandedButton,
+        scaleX: 0.11, // 10% larger
+        scaleY: 0.11,
+        duration: 1000,
+        ease: 'Power2',
+        yoyo: true,
+        repeat: -1
+      });
     } else {
-      this.leftHandedButton.setFillStyle(0x95a5a6);
-      this.leftHandedButton.setStrokeStyle(2, 0x7f8c8d);
-      this.rightHandedButton.setFillStyle(0x27ae60);
-      this.rightHandedButton.setStrokeStyle(2, 0x2ecc71);
+      this.leftHandedButton.setScale(0.1, 0.1); // Normal size
+      this.rightHandedButton.setScale(0.1, 0.1); // Normal size
+      
+      // Add pulsing animation to selected button
+      this.tweens.add({
+        targets: this.rightHandedButton,
+        scaleX: 0.11, // 10% larger
+        scaleY: 0.11,
+        duration: 1000,
+        ease: 'Power2',
+        yoyo: true,
+        repeat: -1
+      });
     }
   }
 
@@ -303,60 +290,36 @@ export class MainMenu extends Scene {
     this.saveGameContainer.add(description);
 
     // Continue button
-    this.continueButton = this.add.graphics();
-    this.continueButton.fillStyle(0x27ae60);
-    this.continueButton.fillRoundedRect(-120, -15, 240, 50, 8);
-    this.continueButton.setPosition(0, 20);
-    this.continueButton.setInteractive(new Phaser.Geom.Rectangle(-120, -15, 240, 50), Phaser.Geom.Rectangle.Contains);
+    this.continueButton = this.add.image(0, 20, 'loadgame');
+    this.continueButton.setDisplaySize(150, 150); // Scaled down from 200x200 to 150x150
+    this.continueButton.setInteractive();
     this.saveGameContainer.add(this.continueButton);
 
-    const continueButtonText = this.add.text(0, 20, "CONTINUE GAME", {
-      fontSize: "20px",
-      color: "#ffffff",
-      fontStyle: "bold"
-    });
-    continueButtonText.setOrigin(0.5);
-    this.saveGameContainer.add(continueButtonText);
+    // Continue button text removed - using image button instead
 
     // New game button
-    this.newGameButton = this.add.graphics();
-    this.newGameButton.fillStyle(0xe74c3c);
-    this.newGameButton.fillRoundedRect(-120, -15, 240, 50, 8);
-    this.newGameButton.setPosition(0, 90);
-    this.newGameButton.setInteractive(new Phaser.Geom.Rectangle(-120, -15, 240, 50), Phaser.Geom.Rectangle.Contains);
+    this.newGameButton = this.add.image(0, 130, 'newgame');
+    this.newGameButton.setDisplaySize(150, 150); // Scaled down from 200x200 to 150x150
+    this.newGameButton.setInteractive();
     this.saveGameContainer.add(this.newGameButton);
 
-    const newGameButtonText = this.add.text(0, 90, "START NEW GAME", {
-      fontSize: "20px",
-      color: "#ffffff",
-      fontStyle: "bold"
-    });
-    newGameButtonText.setOrigin(0.5);
-    this.saveGameContainer.add(newGameButtonText);
+    // New game button text removed - using image button instead
 
     // Button hover effects
     this.continueButton.on('pointerover', () => {
-      this.continueButton.clear();
-      this.continueButton.fillStyle(0x2ecc71);
-      this.continueButton.fillRoundedRect(-120, -15, 240, 50, 8);
+      this.continueButton.setTint(0x2ecc71);
     });
 
     this.continueButton.on('pointerout', () => {
-      this.continueButton.clear();
-      this.continueButton.fillStyle(0x27ae60);
-      this.continueButton.fillRoundedRect(-120, -15, 240, 50, 8);
+      this.continueButton.setTint(0xffffff);
     });
 
     this.newGameButton.on('pointerover', () => {
-      this.newGameButton.clear();
-      this.newGameButton.fillStyle(0xc0392b);
-      this.newGameButton.fillRoundedRect(-120, -15, 240, 50, 8);
+      this.newGameButton.setTint(0xc0392b);
     });
 
     this.newGameButton.on('pointerout', () => {
-      this.newGameButton.clear();
-      this.newGameButton.fillStyle(0xe74c3c);
-      this.newGameButton.fillRoundedRect(-120, -15, 240, 50, 8);
+      this.newGameButton.setTint(0xffffff);
     });
 
     // Button click handlers
@@ -386,7 +349,7 @@ export class MainMenu extends Scene {
     confirmContainer.add(overlay);
 
     // Warning title
-    const warningTitle = this.add.text(0, -100, "WARNING!", {
+    const warningTitle = this.add.text(0, -220, "WARNING!", {
       fontSize: "36px",
       color: "#e74c3c",
       fontStyle: "bold"
@@ -395,7 +358,7 @@ export class MainMenu extends Scene {
     confirmContainer.add(warningTitle);
 
     // Warning text
-    const warningText = this.add.text(0, -30, "Starting a new game will permanently\ndelete your current save data!\n\nThis action cannot be undone.", {
+    const warningText = this.add.text(0, -150, "Starting a new game will permanently\ndelete your current save data!\n\nThis action cannot be undone.", {
       fontSize: "18px",
       color: "#ffffff",
       align: "center",
@@ -405,36 +368,16 @@ export class MainMenu extends Scene {
     confirmContainer.add(warningText);
 
     // Confirm button
-    const confirmButton = this.add.graphics();
-    confirmButton.fillStyle(0xe74c3c);
-    confirmButton.fillRoundedRect(-100, -20, 200, 40, 8);
-    confirmButton.setPosition(0, 60);
-    confirmButton.setInteractive(new Phaser.Geom.Rectangle(-100, -20, 200, 40), Phaser.Geom.Rectangle.Contains);
+    const confirmButton = this.add.image(0, 30, 'deletenew');
+    confirmButton.setDisplaySize(200, 200); // Since it's 1024x1024, scale it down to fit the button area
+    confirmButton.setInteractive();
     confirmContainer.add(confirmButton);
 
-    const confirmButtonText = this.add.text(0, 60, "DELETE & START NEW", {
-      fontSize: "16px",
-      color: "#ffffff",
-      fontStyle: "bold"
-    });
-    confirmButtonText.setOrigin(0.5);
-    confirmContainer.add(confirmButtonText);
-
     // Cancel button
-    const cancelButton = this.add.graphics();
-    cancelButton.fillStyle(0x95a5a6);
-    cancelButton.fillRoundedRect(-100, -20, 200, 40, 8);
-    cancelButton.setPosition(0, 120);
-    cancelButton.setInteractive(new Phaser.Geom.Rectangle(-100, -20, 200, 40), Phaser.Geom.Rectangle.Contains);
+    const cancelButton = this.add.image(0, 160, 'cancel');
+    cancelButton.setDisplaySize(200, 200); // Since it's 1024x1024, scale it down to fit the button area
+    cancelButton.setInteractive();
     confirmContainer.add(cancelButton);
-
-    const cancelButtonText = this.add.text(0, 120, "CANCEL", {
-      fontSize: "16px",
-      color: "#ffffff",
-      fontStyle: "bold"
-    });
-    cancelButtonText.setOrigin(0.5);
-    confirmContainer.add(cancelButtonText);
 
     // Button handlers
     confirmButton.on('pointerdown', () => {
@@ -451,27 +394,19 @@ export class MainMenu extends Scene {
 
     // Hover effects
     confirmButton.on('pointerover', () => {
-      confirmButton.clear();
-      confirmButton.fillStyle(0xc0392b);
-      confirmButton.fillRoundedRect(-100, -20, 200, 40, 8);
+      confirmButton.setTint(0xc0392b);
     });
 
     confirmButton.on('pointerout', () => {
-      confirmButton.clear();
-      confirmButton.fillStyle(0xe74c3c);
-      confirmButton.fillRoundedRect(-100, -20, 200, 40, 8);
+      confirmButton.setTint(0xffffff);
     });
 
     cancelButton.on('pointerover', () => {
-      cancelButton.clear();
-      cancelButton.fillStyle(0x7f8c8d);
-      cancelButton.fillRoundedRect(-100, -20, 200, 40, 8);
+      cancelButton.setTint(0x7f8c8d);
     });
 
     cancelButton.on('pointerout', () => {
-      cancelButton.clear();
-      cancelButton.fillStyle(0x95a5a6);
-      cancelButton.fillRoundedRect(-100, -20, 200, 40, 8);
+      cancelButton.setTint(0xffffff);
     });
   }
 

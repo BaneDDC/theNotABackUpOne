@@ -27,8 +27,10 @@ export class Loading extends Scene {
   }
 
   create() {
-    // Assets are loaded in preload, so we can proceed to main menu
-    this.scene.start('MainMenu');
+    // Transition to splash screen after loading
+    this.time.delayedCall(1000, () => {
+      this.scene.start('Splash');
+    });
   }
 
   private createLoadingUI() {
@@ -36,33 +38,27 @@ export class Loading extends Scene {
     const centerY = this.scale.height / 2;
 
     // Create background
-    this.add.rectangle(centerX, centerY, this.scale.width, this.scale.height, 0x2c3e50);
+    this.add.rectangle(centerX, centerY, this.scale.width, this.scale.height, 0x000000);
 
-    // Title
-    const title = this.add.text(centerX, centerY - 150, "TOILET MERGE GAME", {
-      fontSize: "48px",
-      color: "#ffffff",
-      fontStyle: "bold"
-    });
-    title.setOrigin(0.5);
+    // Title removed
 
     // Loading bar background
     this.loadingBarBg = this.add.graphics();
     this.loadingBarBg.fillStyle(0x34495e);
-    this.loadingBarBg.fillRoundedRect(centerX - 200, centerY - 20, 400, 40, 10);
+    this.loadingBarBg.fillRoundedRect(centerX - 200, centerY + 50, 400, 40, 10);
 
     // Loading bar
     this.loadingBar = this.add.graphics();
 
     // Loading text
-    this.loadingText = this.add.text(centerX, centerY - 60, "Loading... 0%", {
+    this.loadingText = this.add.text(centerX, centerY + 10, "Loading... 0%", {
       fontSize: "24px",
       color: "#ffffff"
     });
     this.loadingText.setOrigin(0.5);
 
     // Current file text
-    this.currentFileText = this.add.text(centerX, centerY + 40, "", {
+    this.currentFileText = this.add.text(centerX, centerY + 110, "", {
       fontSize: "16px",
       color: "#bdc3c7",
       wordWrap: { width: 600 }
@@ -82,6 +78,15 @@ export class Loading extends Scene {
   private loadCriticalAssets() {
     // Load essential UI and gameplay assets first
     this.load.image('newmenu', 'https://raw.githubusercontent.com/localgod13/merge-assets/main/newmenu.png');
+    this.load.image('startgame', 'https://raw.githubusercontent.com/localgod13/merge-assets/main/startgame.png');
+    this.load.image('loadgame', 'https://raw.githubusercontent.com/localgod13/merge-assets/main/loadgame.png');
+    this.load.image('newgame', 'https://raw.githubusercontent.com/localgod13/merge-assets/main/newgame.png');
+    this.load.image('deletenew', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/deletenew.png');
+    this.load.image('cancel', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/cancel.png');
+    this.load.image('flytoxic', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/flytoxic.png');
+    this.load.image('lefthand', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/lefthand.png');
+    this.load.image('righthand', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/righthand.png');
+    this.load.image('portalflush', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/portalflush.png');
     this.load.audio('mainMenuMusic', 'https://raw.githubusercontent.com/localgod13/merge-assets/main/alien.mp3');
     
     // Load essential gameplay assets
@@ -288,7 +293,7 @@ export class Loading extends Scene {
     let count = 0;
     
     // Critical assets
-    count += 8; // newmenu, mainMenuMusic, toilet, plunger, sink, towel, grabber spritesheet, toiletFlush, plungerSound
+    count += 17; // newmenu, startgame, loadgame, newgame, deletenew, cancel, flytoxic, lefthand, righthand, portalflush, mainMenuMusic, toilet, plunger, sink, towel, grabber spritesheet, toiletFlush, plungerSound
     
     // Non-critical assets
     count += 4; // bg1, bg2, bg3, bg4
@@ -346,7 +351,7 @@ export class Loading extends Scene {
       this.loadingBar.fillStyle(0x3498db);
       this.loadingBar.fillRoundedRect(
         this.scale.width / 2 - 200, 
-        this.scale.height / 2 - 20, 
+        this.scale.height / 2 + 50, 
         400 * progress, 
         40, 
         10
