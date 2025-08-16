@@ -122,20 +122,36 @@ export class MainMenu extends Scene {
 
     // Create start button
     this.startButton = this.add.image(centerX, centerY + 50, 'startgame');
-    this.startButton.setDisplaySize(250, 250); // Scaled down from 300x300 to 250x250
+    this.startButton.setDisplaySize(200, 200); // Scaled down from 250x250 to 200x200
     this.startButton.setDepth(2);
     this.startButton.setInteractive();
+    this.startButton.setTint(0xffffff); // Start with normal white tint
+
+    // Add pulsing animation - 10% larger than current scaled size (200x200)
+    this.tweens.add({
+      targets: this.startButton,
+      displayWidth: 220,
+      displayHeight: 220,
+      duration: 1000,
+      ease: 'Power2',
+      yoyo: true,
+      repeat: -1
+    });
 
     // Button text removed - using image button instead
 
     // Add hover effects
     this.startButton.on('pointerover', () => {
-      this.startButton.setTint(0x2ecc71);
+      this.startButton.setTint(0xffffff); // Keep hovered button bright
+      if (this.continueButton) this.continueButton.setTint(0x666666); // Darken continue button
+      if (this.newGameButton) this.newGameButton.setTint(0x666666); // Darken new game button
       this.input.setDefaultCursor('pointer');
     });
 
     this.startButton.on('pointerout', () => {
-      this.startButton.setTint(0xffffff);
+      this.startButton.setTint(0xffffff); // Keep start button bright
+      if (this.continueButton) this.continueButton.setTint(0xffffff); // Return continue button to normal
+      if (this.newGameButton) this.newGameButton.setTint(0xffffff); // Return new game button to normal
       this.input.setDefaultCursor('default');
     });
 
@@ -307,19 +323,23 @@ export class MainMenu extends Scene {
 
     // Button hover effects
     this.continueButton.on('pointerover', () => {
-      this.continueButton.setTint(0x2ecc71);
+      this.continueButton.setTint(0xffffff); // Keep hovered button bright
+      this.newGameButton.setTint(0x666666); // Darken the other button
     });
 
     this.continueButton.on('pointerout', () => {
-      this.continueButton.setTint(0xffffff);
+      this.continueButton.setTint(0xffffff); // Keep continue button bright
+      this.newGameButton.setTint(0xffffff); // Return new game button to normal
     });
 
     this.newGameButton.on('pointerover', () => {
-      this.newGameButton.setTint(0xc0392b);
+      this.newGameButton.setTint(0xffffff); // Keep hovered button bright
+      this.continueButton.setTint(0x666666); // Darken the other button
     });
 
     this.newGameButton.on('pointerout', () => {
-      this.newGameButton.setTint(0xffffff);
+      this.newGameButton.setTint(0xffffff); // Keep new game button bright
+      this.continueButton.setTint(0xffffff); // Return continue button to normal
     });
 
     // Button click handlers
@@ -394,19 +414,23 @@ export class MainMenu extends Scene {
 
     // Hover effects
     confirmButton.on('pointerover', () => {
-      confirmButton.setTint(0xc0392b);
+      confirmButton.setTint(0xffffff); // Keep hovered button bright
+      cancelButton.setTint(0x666666); // Darken the other button
     });
 
     confirmButton.on('pointerout', () => {
-      confirmButton.setTint(0xffffff);
+      confirmButton.setTint(0xffffff); // Keep confirm button bright
+      cancelButton.setTint(0xffffff); // Return cancel button to normal
     });
 
     cancelButton.on('pointerover', () => {
-      cancelButton.setTint(0x7f8c8d);
+      cancelButton.setTint(0xffffff); // Keep hovered button bright
+      confirmButton.setTint(0x666666); // Darken the other button
     });
 
     cancelButton.on('pointerout', () => {
-      cancelButton.setTint(0xffffff);
+      cancelButton.setTint(0xffffff); // Keep cancel button bright
+      confirmButton.setTint(0xffffff); // Return confirm button to normal
     });
   }
 
