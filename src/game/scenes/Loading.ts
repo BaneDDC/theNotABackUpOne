@@ -87,6 +87,7 @@ export class Loading extends Scene {
     this.load.image('lefthand', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/lefthand.png');
     this.load.image('righthand', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/righthand.png');
     this.load.image('portalflush', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/portalflush.png');
+    this.load.image('trophy', 'https://raw.githubusercontent.com/localgod13/merge-assets/main/trophy.png');
     this.load.audio('mainMenuMusic', 'https://raw.githubusercontent.com/localgod13/merge-assets/main/alien.mp3');
     
     // Load essential gameplay assets

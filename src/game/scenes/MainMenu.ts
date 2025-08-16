@@ -61,6 +61,13 @@ export class MainMenu extends Scene {
 
   private startMainMenuMusic() {
     if (this.cache.audio.exists('mainMenuMusic')) {
+      // Check if main menu music is already playing to prevent duplicates
+      const existingMusic = this.sound.get('mainMenuMusic');
+      if (existingMusic && existingMusic.isPlaying) {
+        this.mainMenuMusic = existingMusic;
+        return;
+      }
+      
       this.mainMenuMusic = this.sound.add('mainMenuMusic', { 
         volume: 0.3,
         loop: true 
@@ -177,37 +184,25 @@ export class MainMenu extends Scene {
   }
 
   private createAchievementButton(centerX: number, centerY: number) {
-    // Create achievement button (trophy icon)
-    const achievementButton = this.add.circle(centerX, centerY + 200, 30, 0xf39c12);
+    // Create achievement button using trophy image in top right corner
+    const achievementButton = this.add.image(this.scale.width - 50, 50, 'trophy');
+    achievementButton.setDisplaySize(60, 60); // Same size as the previous circle (30 radius * 2)
     achievementButton.setDepth(2);
     achievementButton.setInteractive();
     
-    // Add trophy icon (using text as placeholder)
-    const trophyText = this.add.text(centerX, centerY + 200, '🏆', {
-      fontSize: '24px'
-    });
-    trophyText.setOrigin(0.5);
-    trophyText.setDepth(3);
-    
     // Add hover effects
     achievementButton.on('pointerover', () => {
-      achievementButton.setScale(1.1);
+      achievementButton.setDisplaySize(63, 63); // 5% larger than 60x60
       this.input.setDefaultCursor('pointer');
     });
     
     achievementButton.on('pointerout', () => {
-      achievementButton.setScale(1.0);
+      achievementButton.setDisplaySize(60, 60); // Return to original size
       this.input.setDefaultCursor('default');
     });
     
     // Add click handler
     achievementButton.on('pointerdown', () => {
-      this.scene.start('AchievementScene');
-    });
-    
-    // Add click handler to text as well
-    trophyText.setInteractive();
-    trophyText.on('pointerdown', () => {
       this.scene.start('AchievementScene');
     });
   }
@@ -479,6 +474,7 @@ export class MainMenu extends Scene {
       localStorage.removeItem('toilet_merge_game_state');
       localStorage.removeItem('game_volume');
       localStorage.removeItem('goo_count'); // Reset goo count for new game
+      // Note: achievement_progress is NOT cleared - achievements persist across new games
     } catch (e) {
       // Ignore errors
     }
