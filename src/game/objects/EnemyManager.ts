@@ -30,6 +30,8 @@ type EnemySprite = Phaser.GameObjects.Sprite & {
   destructionRadius?: number;
   // Merge prevention property
   isMerging?: boolean;
+  // Destruction prevention property
+  isBeingDestroyed?: boolean;
 };
 
 export class EnemyManager {
@@ -291,7 +293,7 @@ export class EnemyManager {
   }
 
   private damageUnstableGoo(goo: EnemySprite): void {
-    if (!goo.active) return;
+    if (!goo.active || goo.isBeingDestroyed) return;
     
     // Allow damage even while dissolving, but give visual feedback
     const isCurrentlyEating = goo.isDissolving;
@@ -409,6 +411,13 @@ export class EnemyManager {
   }
 
   private destroyUnstableGoo(goo: EnemySprite): void {
+    // Prevent multiple destruction calls
+    if (goo.isBeingDestroyed) return;
+    goo.isBeingDestroyed = true;
+    
+    // Disable interactivity immediately
+    goo.disableInteractive();
+    
     goo.isStopped = true;
     goo.isDissolving = true;
     
@@ -499,7 +508,7 @@ export class EnemyManager {
   }
 
   private damageConfettiStorm(confetti: EnemySprite): void {
-    if (!confetti.active) return;
+    if (!confetti.active || confetti.isBeingDestroyed) return;
     
     // Reduce health
     confetti.currentHealth!--;
@@ -550,6 +559,13 @@ export class EnemyManager {
   }
 
   private destroyConfettiStorm(confetti: EnemySprite): void {
+    // Prevent multiple destruction calls
+    if (confetti.isBeingDestroyed) return;
+    confetti.isBeingDestroyed = true;
+    
+    // Disable interactivity immediately
+    confetti.disableInteractive();
+    
     // Stop movement immediately
     const body = confetti.body as Phaser.Physics.Arcade.Body;
     body.setVelocity(0, 0);
@@ -669,7 +685,7 @@ export class EnemyManager {
 
 
   private damageGooTornado(tornado: EnemySprite): void {
-    if (!tornado.active) return;
+    if (!tornado.active || tornado.isBeingDestroyed) return;
     
     // Reduce health
     tornado.currentHealth!--;
@@ -719,6 +735,13 @@ export class EnemyManager {
   }
 
   private destroyGooTornado(tornado: EnemySprite): void {
+    // Prevent multiple destruction calls
+    if (tornado.isBeingDestroyed) return;
+    tornado.isBeingDestroyed = true;
+    
+    // Disable interactivity immediately
+    tornado.disableInteractive();
+    
     // Stop movement
     const body = tornado.body as Phaser.Physics.Arcade.Body;
     body.setVelocity(0, 0);
