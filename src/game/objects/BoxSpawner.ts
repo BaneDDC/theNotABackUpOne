@@ -12,15 +12,12 @@ export class BoxSpawner {
   private tier1CheckTimer?: Phaser.Time.TimerEvent;
   private noTier1Timer?: Phaser.Time.TimerEvent;
   private lastTier1Count: number = 0;
-  private isFirstBoxEver: boolean = true; // Track if this is the very first box opened in the game
+
   private noMergeableTimer?: Phaser.Time.TimerEvent;
 
   constructor(scene: Phaser.Scene, itemManager: ItemManager) {
     this.scene = scene;
     this.itemManager = itemManager;
-    
-    // Check if tutorial has been completed by looking at saved game state
-    this.checkTutorialCompletionStatus();
     
     // Don't start monitoring immediately - wait for items to load first
     // Start monitoring tier 1 items with a delay to allow saved items to load
@@ -37,21 +34,7 @@ export class BoxSpawner {
     }
   }
 
-  private checkTutorialCompletionStatus() {
-    try {
-      const savedState = localStorage.getItem('toilet_merge_game_state');
-      if (savedState) {
-        const gameState = JSON.parse(savedState);
-        // If tutorial is completed in saved game, mark first box as already opened
-        if (gameState.tutorialCompleted) {
-          this.isFirstBoxEver = false;
-        }
-      }
-    } catch (error) {
 
-      // Default to tutorial not completed if we can't read the save
-    }
-  }
 
   private startTier1Monitoring() {
     // Check tier 1 item count every 2 seconds
@@ -386,13 +369,12 @@ export class BoxSpawner {
     const partsSound = this.scene.sound.add('parts', { volume: 0.7 });
     partsSound.play();
 
-    // Play first box sounds if this is the very first box opened
-    if (this.isFirstBoxEver) {
+    // Play first box sounds if this is the first box of the current game session
+    if (this.isFirstBoxOfSession()) {
       // Delay the tutorial sounds to play after the parts sound
       this.scene.time.delayedCall(500, () => {
         this.playFirstBoxSounds();
       });
-      this.isFirstBoxEver = false; // Mark that first box has been opened
     }
 
     // Always spawn 8 tier 1 items regardless of any conditions
@@ -422,6 +404,13 @@ export class BoxSpawner {
   }
 
   private isTutorialCompleted(): boolean {
+    // Get tutorial status from the Game scene instead of localStorage
+    const gameScene = this.scene as any;
+    if (gameScene.tutorialPhase !== undefined) {
+      return !gameScene.tutorialPhase; // tutorialPhase is true when tutorial is active, false when completed
+    }
+    
+    // Fallback to localStorage if scene property not available
     try {
       const savedState = localStorage.getItem('toilet_merge_game_state');
       if (!savedState) {
@@ -431,9 +420,20 @@ export class BoxSpawner {
       const gameState = JSON.parse(savedState);
       return gameState.tutorialCompleted === true;
     } catch (error) {
-
       return false; // Default to tutorial not completed if we can't read the save
     }
+  }
+
+  private isFirstBoxOfSession(): boolean {
+    // Check if this is the first box of the current game session
+    // This should only be true for new games where tutorial is still active
+    const gameScene = this.scene as any;
+    if (gameScene.tutorialPhase !== undefined) {
+      return gameScene.tutorialPhase; // tutorialPhase is true when tutorial is active (new game)
+    }
+    
+    // Fallback: if we can't determine tutorial status, assume it's not the first box
+    return false;
   }
 
   private addFirstBoxEffects() {
@@ -724,3 +724,5 @@ export class BoxSpawner {
     this.hasOpened = false;
   }
 }
+
+

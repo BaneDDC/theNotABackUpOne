@@ -1,6 +1,7 @@
 // src/game/scenes/MainMenu.ts
 
 import { Scene } from "phaser";
+import { SaveService } from "../../services/SaveService";
 
 export class MainMenu extends Scene {
   private backgroundImage!: Phaser.GameObjects.Image;
@@ -32,7 +33,12 @@ export class MainMenu extends Scene {
     this.startMainMenuMusic();
     
     // Check for save data
-    this.checkForSaveData();
+    this.checkForSaveData().then(() => {
+      // Update UI after save data check completes
+      if (this.hasSaveData && this.continueButton) {
+        this.continueButton.setVisible(true);
+      }
+    });
     
     // Create main menu UI
     this.createMainMenuUI();
@@ -77,35 +83,55 @@ export class MainMenu extends Scene {
     }
   }
 
-  private checkForSaveData() {
-    // Check if there's any meaningful save data
-    const discoveries = localStorage.getItem('bestiary_discoveries');
-    const gameState = localStorage.getItem('toilet_merge_game_state');
-    const volume = localStorage.getItem('game_volume');
-    
-    let discoveryCount = 0;
-    if (discoveries) {
-      try {
-        const parsed = JSON.parse(discoveries);
-        discoveryCount = parsed.length;
-      } catch (e) {
-        discoveryCount = 0;
+  private async checkForSaveData() {
+    // Check if there's any meaningful save data from cloud
+    try {
+      const saveService = SaveService.getInstance();
+      const cloudSaveResult = await saveService.hasSaveData();
+      
+      // Check for local discoveries (these might still be stored locally)
+      const discoveries = localStorage.getItem('bestiary_discoveries');
+      let discoveryCount = 0;
+      if (discoveries) {
+        try {
+          const parsed = JSON.parse(discoveries);
+          discoveryCount = parsed.length;
+        } catch (e) {
+          discoveryCount = 0;
+        }
       }
-    }
 
-    let hasGameState = false;
-    if (gameState) {
-      try {
-        const parsed = JSON.parse(gameState);
-        // Check if it's a valid game state with meaningful progress
-        hasGameState = parsed.version && (parsed.tutorialCompleted || (parsed.items && parsed.items.length > 0));
-      } catch (e) {
-        hasGameState = false;
+      // Consider save data meaningful if there are cloud saves OR discoveries
+      this.hasSaveData = cloudSaveResult || discoveryCount > 0;
+      console.log('🔄 Save data check - Cloud save:', cloudSaveResult, 'Discoveries:', discoveryCount, 'Has save data:', this.hasSaveData);
+    } catch (error) {
+      console.error('Error checking for save data:', error);
+      // Fallback to local storage check
+      const discoveries = localStorage.getItem('bestiary_discoveries');
+      const gameState = localStorage.getItem('toilet_merge_game_state');
+      
+      let discoveryCount = 0;
+      if (discoveries) {
+        try {
+          const parsed = JSON.parse(discoveries);
+          discoveryCount = parsed.length;
+        } catch (e) {
+          discoveryCount = 0;
+        }
       }
-    }
 
-    // Consider save data meaningful if there are discoveries OR game state
-    this.hasSaveData = discoveryCount > 0 || hasGameState;
+      let hasGameState = false;
+      if (gameState) {
+        try {
+          const parsed = JSON.parse(gameState);
+          hasGameState = parsed.version && (parsed.tutorialCompleted || (parsed.items && parsed.items.length > 0));
+        } catch (e) {
+          hasGameState = false;
+        }
+      }
+
+      this.hasSaveData = discoveryCount > 0 || hasGameState;
+    }
   }
 
   private createMainMenuUI() {
@@ -564,15 +590,18 @@ export class MainMenu extends Scene {
     });
   }
 
-  private clearSaveData() {
+  private async clearSaveData() {
     try {
+      // Clear cloud save data
+      const saveService = SaveService.getInstance();
+      await saveService.deleteSave();
+      
+      // Clear local discoveries (these might still be stored locally)
       localStorage.removeItem('bestiary_discoveries');
-      localStorage.removeItem('toilet_merge_game_state');
-      localStorage.removeItem('game_volume');
-      localStorage.removeItem('goo_count'); // Reset goo count for new game
+      
       // Note: achievement_progress is NOT cleared - achievements persist across new games
     } catch (e) {
-      // Ignore errors
+      console.error('Error clearing save data:', e);
     }
   }
 

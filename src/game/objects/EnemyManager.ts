@@ -332,17 +332,28 @@ export class EnemyManager {
           const asset = child as any;
           // Aggressively stop ALL tweens and effects on this asset
           this.scene.tweens.killTweensOf(asset);
-          // Force reset all visual properties
-          asset.setTint(0xffffff);
-          asset.setAlpha(1);
-          asset.setScale(asset.scaleX, asset.scaleY);
+          
+          // Only call methods if they exist on the asset
+          if (typeof asset.setTint === 'function') {
+            asset.setTint(0xffffff);
+          }
+          if (typeof asset.setAlpha === 'function') {
+            asset.setAlpha(1);
+          }
+          if (typeof asset.setScale === 'function') {
+            asset.setScale(asset.scaleX, asset.scaleY);
+          }
           // Clear any custom properties that might be causing issues
           if (asset.dissolveTween) {
             asset.dissolveTween = undefined;
           }
-          // Force a complete visual reset
-          asset.clearTint();
-          asset.setAlpha(1);
+          // Force a complete visual reset - only if methods exist
+          if (typeof asset.clearTint === 'function') {
+            asset.clearTint();
+          }
+          if (typeof asset.setAlpha === 'function') {
+            asset.setAlpha(1);
+          }
         }
       });
       
@@ -484,6 +495,9 @@ export class EnemyManager {
     const gameScene = this.scene as any;
     if (gameScene.tutorialPhase && gameScene.tutorialPhase === true) {
       // This is the tutorial goo being destroyed - complete the tutorial
+      // Emit event for glorious audio to play immediately
+      this.scene.events.emit('tutorial:goo_destroyed');
+      
       this.scene.time.delayedCall(500, () => {
         if (gameScene.completeTutorial) {
           gameScene.completeTutorial();

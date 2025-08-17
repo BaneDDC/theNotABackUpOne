@@ -118,6 +118,23 @@ export class Game extends Scene {
     this.load.image('alientube', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/alientube.png');
     this.load.image('tutcom', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/tutcom.png');
     
+    // Load store assets
+    this.load.image('outofstock', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/outofstock.png');
+    
+    // Load tutorial completion audio
+    this.load.audio('glorious', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/glorious.mp3');
+    
+    // Add error handling for audio loading
+    this.load.on('loaderror', (file: any) => {
+      if (file.key === 'glorious') {
+        console.error('❌ Failed to load glorious audio:', file.src);
+      }
+    });
+    
+    this.load.on('complete', () => {
+      console.log('✅ All assets loaded successfully, including glorious audio');
+    });
+    
     // Add error handling for image loading
     this.load.on('loaderror', (file: any) => {
       // If image fails to load, we'll create a fallback in setupResearchLog
@@ -156,20 +173,20 @@ export class Game extends Scene {
     this.setupCollisionEditorKey()
 
     const saveGameChoice = this.registry.get('saveGameChoice')
+    console.log('🔄 Save game choice:', saveGameChoice);
     let gameStateLoaded = false;
     if (saveGameChoice === 'continue') {
       gameStateLoaded = await this.loadGameState();
+      console.log('🔄 Game state loaded:', gameStateLoaded, 'Current score:', this.currentScore);
     } else {
       // Ensure completely fresh start for new games
       this.tutorialPhase = true;
       this.portalCreated = false;
       this.FlushCount = 0;
       this.currentScore = 0;
+      console.log('🔄 Starting new game, score reset to:', this.currentScore);
       
-      // Reset all managers to fresh state
-      if (this.gooCounter) {
-        this.gooCounter.setGooCount(0);
-      }
+      // Reset radio manager to fresh state
       if (this.radioManager) {
         this.radioManager.setVolume(0.3);
         this.radioManager.setCurrentSong(0);
@@ -190,6 +207,13 @@ export class Game extends Scene {
     this.setupMergeSystem()
     this.setupHintButton()
     this.setupGooCounter()
+    
+    // Reset goo counter to 0 for new games (after setupGooCounter is called)
+    if (saveGameChoice === 'new' && this.gooCounter) {
+      this.gooCounter.setGooCount(0);
+      console.log('🔄 New game: Goo counter reset to 0');
+    }
+    
     this.scene.launch('Bestiary')
 
     const pauseUI = new PauseButton(this).create()
@@ -202,6 +226,17 @@ export class Game extends Scene {
     ;(this as any).alienOrderSystem = alienOrderUI.container
     ;(this as any).alienHead = alienOrderUI.alienHead
     ;(this as any).orderCard = alienOrderUI.card
+    
+    // Add keyboard shortcut to test glorious audio (for debugging)
+    this.input.keyboard?.on('keydown-G', () => {
+      console.log('🎵 Testing glorious audio with G key...');
+      if (this.sound.get('glorious')) {
+        this.sound.play('glorious', { volume: 1.0 });
+        console.log('✅ Test audio playing!');
+      } else {
+        console.log('❌ Glorious audio not available for testing');
+      }
+    });
 
     // Set a random alien head when the system is created (removed timer)
     alienOrderSystem.setRandomAlien()
@@ -265,6 +300,12 @@ export class Game extends Scene {
       if ((this as any).alienOrderSystemInstance) {
         (this as any).alienOrderSystemInstance.setTutorialCompleted(true);
       }
+    });
+
+    // Listen for tutorial goo destruction to play glorious audio immediately
+    this.events.on('tutorial:goo_destroyed', () => {
+      console.log('🔄 Tutorial goo destroyed - playing glorious audio immediately!');
+      this.playGloriousAudio();
     });
 
     this.events.on('toilet:flush', () => {
@@ -377,13 +418,27 @@ export class Game extends Scene {
 
     // Listen for successful toilet merges
     this.events.on("toilet:merged", (resultName: string) => {
+      console.log('🔄 Toilet merged event received:', resultName);
+      
       // Check if this is the tutorial merge (Battery + Loose Wires = Powered Wire)
       if (this.tutorialPhase && resultName === "Powered Wire") {
+        console.log('✅ Handling tutorial merge');
         this.handleTutorialMerge();
       } else if (!this.tutorialPhase) {
         // Normal gameplay - send merged item to portal
+        console.log('🔄 Attempting to spawn merged item at portal:', resultName);
         if (merge.spawner) {
-          merge.spawner.spawnAtPortal(resultName);
+          try {
+            merge.spawner.spawnAtPortal(resultName);
+            console.log('✅ Item spawned successfully at portal');
+          } catch (error) {
+            console.error('❌ Error spawning item at portal:', error);
+            // Fallback: try to spawn item directly
+            this.fallbackSpawnItem(resultName);
+          }
+        } else {
+          console.log('❌ No spawner available, using fallback spawn');
+          this.fallbackSpawnItem(resultName);
         }
       }
     });
@@ -933,6 +988,136 @@ export class Game extends Scene {
       
       // Reset sink to original position
       this.sink.setPosition(1121.33, 419.08)
+    }
+  }
+
+  private shakeHintButtonDuringAudio(playingSound?: Phaser.Sound.BaseSound) {
+    if (!this.hintButton) {
+      console.log('❌ Hint button not available for shaking');
+      return;
+    }
+
+    console.log('🔄 Starting hint button shake during glorious audio...');
+    
+    // Stop any currently playing tutorial audio from the hint button
+    if ((this.hintButton as any).currentTutorialSound && (this.hintButton as any).currentTutorialSound.isPlaying) {
+      console.log('🔄 Stopping hint button tutorial audio before glorious audio...');
+      (this.hintButton as any).currentTutorialSound.stop();
+      (this.hintButton as any).currentTutorialSound = undefined;
+    }
+    
+    // Get the hint button's sprite from the HintButton class
+    const hintButtonSprite = (this.hintButton as any).buttonText;
+    
+    if (hintButtonSprite) {
+      // Start shaking the hint button with moderate intensity
+      // Duration will be controlled by the audio completion event
+      const shakeTween = this.animationManager.shakeSprite(hintButtonSprite, { 
+        intensity: 4, 
+        duration: 10000, // Long duration as fallback, will be stopped when audio ends
+        interval: 60 
+      });
+      
+      // Store reference to stop shaking later
+      (this as any).hintButtonShakeTween = shakeTween;
+      
+      console.log('✅ Hint button shake started during glorious audio');
+      
+      // If we have the playing sound, listen for when it completes to stop shaking
+      if (playingSound) {
+        playingSound.once('complete', () => {
+          console.log('🎵 Glorious audio completed, stopping hint button shake');
+          if ((this as any).hintButtonShakeTween) {
+            (this as any).hintButtonShakeTween.destroy();
+            (this as any).hintButtonShakeTween = undefined;
+          }
+        });
+      } else {
+        // Fallback: stop shaking after estimated audio duration (5 seconds)
+        this.time.delayedCall(5000, () => {
+          console.log('⏰ Fallback: stopping hint button shake after 5 seconds');
+          if ((this as any).hintButtonShakeTween) {
+            (this as any).hintButtonShakeTween.destroy();
+            (this as any).hintButtonShakeTween = undefined;
+          }
+        });
+      }
+    } else {
+      console.log('❌ Hint button sprite not found for shaking');
+    }
+  }
+
+  private playGloriousAudio() {
+    console.log('🔄 Playing glorious audio immediately...');
+    console.log('🔊 Available audio keys:', this.sound.getAllPlaying().map(s => s.key));
+    
+    try {
+      const gloriousSound = this.sound.get('glorious');
+      if (gloriousSound) {
+        console.log('✅ Glorious audio found, playing at 100% volume...');
+        // Ensure 100% volume and play
+        this.sound.setVolume(1.0);
+        this.sound.play('glorious', { volume: 1.0 });
+        console.log('🎵 Glorious tutorial completion audio playing at 100% volume!');
+        
+        // Start shaking the hint button during audio playback
+        this.shakeHintButtonDuringAudio(gloriousSound);
+      } else {
+        console.log('❌ Glorious audio not found in sound manager');
+        // Try to play directly at 100% volume
+        this.sound.play('glorious', { volume: 1.0 });
+        console.log('🔄 Attempted direct play of glorious audio at 100% volume');
+        
+        // Still try to shake the hint button
+        this.shakeHintButtonDuringAudio();
+      }
+    } catch (error) {
+      console.error('❌ Error playing glorious audio:', error);
+    }
+  }
+
+  private fallbackSpawnItem(itemName: string) {
+    console.log('🔄 Using fallback spawn for item:', itemName);
+    
+    try {
+      const merge = this.getMergeSystem();
+      if (!merge || !merge.items) {
+        console.log('❌ No merge system available for fallback spawn');
+        return;
+      }
+
+      // Try to spawn the item directly using the ItemManager
+      const spawnedItem = merge.items.spawn(itemName, 564.96, 42.41, 0x55aa55);
+      
+      if (spawnedItem) {
+        console.log('✅ Fallback spawn successful for:', itemName);
+        
+        // Create a simple animation to show the item appeared
+        this.tweens.add({
+          targets: spawnedItem,
+          scaleX: 1.2,
+          scaleY: 1.2,
+          duration: 200,
+          yoyo: true,
+          onComplete: () => {
+            // Move item to a random position on the floor
+            const randomX = Phaser.Math.Between(100, 1000);
+            const floorY = 473 - 18; // Top of floor platform
+            
+            this.tweens.add({
+              targets: spawnedItem,
+              x: randomX,
+              y: floorY,
+              duration: 1000,
+              ease: 'Power2.easeOut'
+            });
+          }
+        });
+      } else {
+        console.log('❌ Fallback spawn failed for:', itemName);
+      }
+    } catch (error) {
+      console.error('❌ Error in fallback spawn:', error);
     }
   }
 
@@ -1523,14 +1708,17 @@ export class Game extends Scene {
     // Format score with leading zeros to maintain 7-digit display
     const formattedScore = this.currentScore.toString().padStart(7, '0');
     this.scoreText.setText(formattedScore);
+    console.log('🔄 Score display updated to:', formattedScore, 'Current score:', this.currentScore);
   }
 
   private addScore(points: number) {
+    console.log('🔄 Adding score:', points, 'Current score before:', this.currentScore);
     this.currentScore += points;
     // Prevent score from going below 0
     if (this.currentScore < 0) {
       this.currentScore = 0;
     }
+    console.log('🔄 Score after adding:', this.currentScore);
     this.updateScoreDisplay();
   }
 
@@ -2390,6 +2578,23 @@ export class Game extends Scene {
     
           try {
         console.log('🔄 Auto-save triggered (30-second interval)');
+        console.log('🔄 Saving score:', this.currentScore);
+        // Get current alien order state
+        let alienOrderState = null;
+        if ((this as any).alienOrderSystemInstance) {
+          const currentOrder = (this as any).alienOrderSystemInstance.getCurrentOrder();
+          if (currentOrder) {
+            alienOrderState = {
+              requestedItem: currentOrder.requestedItem,
+              requiredItems: currentOrder.requiredItems,
+              difficulty: currentOrder.difficulty,
+              gooReward: currentOrder.gooReward,
+              timeCreated: currentOrder.timeCreated,
+              isCompleted: currentOrder.isCompleted
+            };
+          }
+        }
+
         const gameState = {
         tutorialCompleted: !this.tutorialPhase,
         portalCreated: this.portalCreated,
@@ -2409,6 +2614,7 @@ export class Game extends Scene {
         achievements: this.getAchievementsState(),
         portalExists: this.portalCreated && !!this.children.getByName('portal'),
         portalPosition: this.portalCreated ? { x: 564.96, y: 52.41 } : null,
+        alienOrderState: alienOrderState,
         timestamp: Date.now(),
         version: "1.0"
       };
@@ -2462,6 +2668,11 @@ export class Game extends Scene {
       this.portalCreated = gameState.portalCreated || false;
       this.FlushCount = gameState.flushCount || 0;
       this.currentScore = gameState.currentScore || 0; // Load saved score
+      console.log('🔄 Score loaded from save:', this.currentScore);
+      
+      // Update score display after loading
+      this.updateScoreDisplay();
+      console.log('🔄 Score display updated, current score:', this.currentScore);
 
       // Check if portal should exist based on save data
       const shouldHavePortal = gameState.portalExists !== undefined ? gameState.portalExists : gameState.portalCreated;
@@ -2528,8 +2739,31 @@ export class Game extends Scene {
         this.portalCreated = true; // Mark that portal should exist
         
         // Notify alien order system that tutorial is completed (for saved games)
+        console.log('🔄 Game Scene: Notifying alien order system that tutorial is completed')
         if ((this as any).alienOrderSystemInstance) {
+          console.log('🔄 Game Scene: Alien order system instance found, calling setTutorialCompleted')
           (this as any).alienOrderSystemInstance.setTutorialCompleted(true);
+        } else {
+          console.log('❌ Game Scene: Alien order system instance NOT found!')
+        }
+
+        // Restore alien order system state if available
+        console.log('🔄 Game Scene: Checking for alien order state in save data:', !!gameState.alienOrderState)
+        if (gameState.alienOrderState && (this as any).alienOrderSystemInstance) {
+          console.log('🔄 Game Scene: Found alien order state, will restore in 5 seconds')
+          this.time.delayedCall(5000, () => {
+            console.log('🔄 Game Scene: 5 second delay completed, calling restoreAlienOrderFromSave')
+            this.restoreAlienOrderFromSave(gameState.alienOrderState);
+          });
+        } else if ((this as any).alienOrderSystemInstance) {
+          // If no saved order, generate a new one after a delay
+          console.log('🔄 Game Scene: No alien order state found, will generate new order in 5 seconds')
+          this.time.delayedCall(5000, () => {
+            console.log('🔄 Game Scene: 5 second delay completed, calling generateNewOrder')
+            (this as any).alienOrderSystemInstance.generateNewOrder();
+          });
+        } else {
+          console.log('❌ Game Scene: Alien order system instance not available for order restoration/generation')
         }
       }
 
@@ -2717,6 +2951,31 @@ export class Game extends Scene {
     const bestiaryScene = this.scene.get('Bestiary') as any;
     if (bestiaryScene && bestiaryScene.discoveredMerges) {
       bestiaryScene.discoveredMerges = bestiaryEntriesData;
+    }
+  }
+
+  private restoreAlienOrderFromSave(alienOrderState: any) {
+    if (!(this as any).alienOrderSystemInstance) {
+      console.log('❌ Alien order system not available for restoration');
+      return;
+    }
+
+    try {
+      console.log('🔄 Restoring alien order from save:', alienOrderState);
+      
+      // Restore the saved order to the alien order system
+      const restored = (this as any).alienOrderSystemInstance.restoreOrderFromSave(alienOrderState);
+      
+      if (restored) {
+        console.log('✅ Alien order restored successfully');
+      } else {
+        console.log('❌ Failed to restore alien order, generating new one');
+        (this as any).alienOrderSystemInstance.generateNewOrder();
+      }
+    } catch (error) {
+      console.error('❌ Error restoring alien order:', error);
+      // Fallback to generating a new order
+      (this as any).alienOrderSystemInstance.generateNewOrder();
     }
   }
 

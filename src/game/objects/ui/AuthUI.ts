@@ -9,11 +9,11 @@ export class AuthUI {
 
   // UI Elements
   private background: Phaser.GameObjects.Rectangle
-  private title: Phaser.GameObjects.Text
+  private title: Phaser.GameObjects.Image
   private usernameInput: Phaser.GameObjects.DOMElement
   private passwordInput: Phaser.GameObjects.DOMElement
-  private loginButton: Phaser.GameObjects.Text
-  private registerButton: Phaser.GameObjects.Text
+  private loginButton: Phaser.GameObjects.Image
+  private registerButton: Phaser.GameObjects.Image
   private errorText: Phaser.GameObjects.Text
   private loadingText: Phaser.GameObjects.Text
 
@@ -22,14 +22,29 @@ export class AuthUI {
     this.authService = AuthService.getInstance()
     this.container = scene.add.container(0, 0)
     
-    try {
-      this.createUI()
-      this.hide()
-    } catch (error) {
-      console.error('Error creating AuthUI:', error)
-      // Fallback: create a simple text-based login if DOM fails
-      this.createFallbackUI()
-    }
+    // Load the UI images and wait for them to complete
+    this.loadUIImages()
+  }
+
+  private loadUIImages(): void {
+    // Load the title and button images from jsDelivr CDN
+    this.scene.load.image('portal-title', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/portal.png')
+    this.scene.load.image('login-button', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/login.png')
+    this.scene.load.image('register-button', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/reg.png')
+    
+    // Wait for the images to load before creating UI
+    this.scene.load.once('complete', () => {
+      try {
+        this.createUI()
+        this.hide()
+      } catch (error) {
+        console.error('Error creating AuthUI:', error)
+        // Fallback: create a simple text-based login if DOM fails
+        this.createFallbackUI()
+      }
+    })
+    
+    this.scene.load.start()
   }
 
   private createUI(): void {
@@ -40,12 +55,10 @@ export class AuthUI {
     this.background = this.scene.add.rectangle(centerX, centerY, 400, 500, 0x000000, 0.8)
     this.background.setStrokeStyle(2, 0xffffff)
 
-    // Title
-    this.title = this.scene.add.text(centerX, centerY - 200, 'GAME LOGIN', {
-      fontSize: '32px',
-      color: '#ffffff',
-      fontFamily: 'Arial'
-    }).setOrigin(0.5)
+    // Title - Using Portal Access Alert image from jsDelivr CDN
+    this.title = this.scene.add.image(centerX, centerY - 180, 'portal-title')
+    this.title.setScale(0.3) // Scale down to fit UI
+    this.title.setOrigin(0.5)
 
     // Username Input
     const usernameInputElement = document.createElement('input')
@@ -61,7 +74,7 @@ export class AuthUI {
     usernameInputElement.style.color = '#ffffff'
     usernameInputElement.style.textAlign = 'center'
 
-    this.usernameInput = this.scene.add.dom(centerX, centerY - 100, usernameInputElement)
+    this.usernameInput = this.scene.add.dom(centerX, centerY - 60, usernameInputElement)
 
     // Password Input
     const passwordInputElement = document.createElement('input')
@@ -77,23 +90,17 @@ export class AuthUI {
     passwordInputElement.style.color = '#ffffff'
     passwordInputElement.style.textAlign = 'center'
 
-    this.passwordInput = this.scene.add.dom(centerX, centerY - 40, passwordInputElement)
+    this.passwordInput = this.scene.add.dom(centerX, centerY, passwordInputElement)
 
-    // Login Button
-    this.loginButton = this.scene.add.text(centerX, centerY + 20, 'LOGIN', {
-      fontSize: '24px',
-      color: '#ffffff',
-      backgroundColor: '#0066cc',
-      padding: { x: 20, y: 10 }
-    }).setOrigin(0.5).setInteractive()
+    // Login Button - Using image from jsDelivr CDN
+    this.loginButton = this.scene.add.image(centerX, centerY + 80, 'login-button')
+    this.loginButton.setScale(0.15) // Scale down from 1024x1024 to fit UI
+    this.loginButton.setInteractive()
 
-    // Register Button
-    this.registerButton = this.scene.add.text(centerX, centerY + 80, 'REGISTER', {
-      fontSize: '24px',
-      color: '#ffffff',
-      backgroundColor: '#009900',
-      padding: { x: 20, y: 10 }
-    }).setOrigin(0.5).setInteractive()
+    // Register Button - Using image from jsDelivr CDN
+    this.registerButton = this.scene.add.image(centerX, centerY + 160, 'register-button')
+    this.registerButton.setScale(0.15) // Scale down from 1024x1024 to fit UI
+    this.registerButton.setInteractive()
 
     // Error Text
     this.errorText = this.scene.add.text(centerX, centerY + 140, '', {
@@ -127,11 +134,31 @@ export class AuthUI {
 
   private setupInteractions(): void {
     // Login button
+    this.loginButton.on('pointerover', () => {
+      this.loginButton.setTint(0x88ccff); // Light blue tint on hover
+      this.scene.input.setDefaultCursor('pointer');
+    });
+
+    this.loginButton.on('pointerout', () => {
+      this.loginButton.clearTint(); // Remove tint on hover out
+      this.scene.input.setDefaultCursor('default');
+    });
+
     this.loginButton.on('pointerdown', () => {
       this.handleLogin()
     })
 
     // Register button
+    this.registerButton.on('pointerover', () => {
+      this.registerButton.setTint(0x88ff88); // Light green tint on hover
+      this.scene.input.setDefaultCursor('pointer');
+    });
+
+    this.registerButton.on('pointerout', () => {
+      this.registerButton.clearTint(); // Remove tint on hover out
+      this.scene.input.setDefaultCursor('default');
+    });
+
     this.registerButton.on('pointerdown', () => {
       this.handleRegister()
     })
@@ -269,25 +296,17 @@ export class AuthUI {
     this.background = this.scene.add.rectangle(centerX, centerY, 400, 500, 0x000000, 0.8)
     this.background.setStrokeStyle(2, 0xffffff)
 
-    this.title = this.scene.add.text(centerX, centerY - 200, 'GAME LOGIN', {
-      fontSize: '32px',
-      color: '#ffffff',
-      fontFamily: 'Arial'
-    }).setOrigin(0.5)
+    this.title = this.scene.add.image(centerX, centerY - 180, 'portal-title')
+    this.title.setScale(0.3) // Scale down to fit UI
+    this.title.setOrigin(0.5)
 
-    this.loginButton = this.scene.add.text(centerX, centerY + 20, 'LOGIN (DOM NOT AVAILABLE)', {
-      fontSize: '24px',
-      color: '#ffffff',
-      backgroundColor: '#0066cc',
-      padding: { x: 20, y: 10 }
-    }).setOrigin(0.5).setInteractive()
+    this.loginButton = this.scene.add.image(centerX, centerY + 80, 'login-button')
+    this.loginButton.setScale(0.15) // Scale down from 1024x1024 to fit UI
+    this.loginButton.setInteractive()
 
-    this.registerButton = this.scene.add.text(centerX, centerY + 80, 'REGISTER (DOM NOT AVAILABLE)', {
-      fontSize: '24px',
-      color: '#ffffff',
-      backgroundColor: '#009900',
-      padding: { x: 20, y: 10 }
-    }).setOrigin(0.5).setInteractive()
+    this.registerButton = this.scene.add.image(centerX, centerY + 160, 'register-button')
+    this.registerButton.setScale(0.15) // Scale down from 1024x1024 to fit UI
+    this.registerButton.setInteractive()
 
     this.errorText = this.scene.add.text(centerX, centerY + 140, 'DOM elements not available. Please use a modern browser.', {
       fontSize: '16px',
@@ -304,9 +323,29 @@ export class AuthUI {
     ])
 
     // Set up basic interactions
+    this.loginButton.on('pointerover', () => {
+      this.loginButton.setTint(0x88ccff); // Light blue tint on hover
+      this.scene.input.setDefaultCursor('pointer');
+    });
+
+    this.loginButton.on('pointerout', () => {
+      this.loginButton.clearTint(); // Remove tint on hover out
+      this.scene.input.setDefaultCursor('default');
+    });
+
     this.loginButton.on('pointerdown', () => {
       this.showError('DOM login not available. Please use a modern browser.')
     })
+
+    this.registerButton.on('pointerover', () => {
+      this.registerButton.setTint(0x88ff88); // Light green tint on hover
+      this.scene.input.setDefaultCursor('pointer');
+    });
+
+    this.registerButton.on('pointerout', () => {
+      this.registerButton.clearTint(); // Remove tint on hover out
+      this.scene.input.setDefaultCursor('default');
+    });
 
     this.registerButton.on('pointerdown', () => {
       this.showError('DOM registration not available. Please use a modern browser.')

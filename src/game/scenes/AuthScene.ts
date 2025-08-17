@@ -4,9 +4,9 @@ import { AuthService } from "../../services/AuthService";
 export class AuthScene extends Scene {
   private authService: AuthService;
   private backgroundImage!: Phaser.GameObjects.Image;
-  private title!: Phaser.GameObjects.Text;
-  private loginButton!: Phaser.GameObjects.Text;
-  private registerButton!: Phaser.GameObjects.Text;
+  private title!: Phaser.GameObjects.Image;
+  private loginButton!: Phaser.GameObjects.Image;
+  private registerButton!: Phaser.GameObjects.Image;
   private errorText!: Phaser.GameObjects.Text;
   private loadingText!: Phaser.GameObjects.Text;
   private usernameInput!: Phaser.GameObjects.DOMElement;
@@ -18,14 +18,29 @@ export class AuthScene extends Scene {
   }
 
   create() {
-    // Create background
-    this.createBackground();
+    // Load the UI images and wait for them to complete
+    this.loadUIImages();
+  }
+
+  private loadUIImages(): void {
+    // Load the title and button images from jsDelivr CDN
+    this.load.image('portal-title', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/portal.png')
+    this.load.image('login-button', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/login.png')
+    this.load.image('register-button', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/reg.png')
     
-    // Check if user is already authenticated
-    this.checkAuthentication();
+    // Wait for the images to load before creating UI
+    this.load.once('complete', () => {
+      // Create background
+      this.createBackground();
+      
+      // Check if user is already authenticated
+      this.checkAuthentication();
+      
+      // Create UI elements
+      this.createUI();
+    })
     
-    // Create UI elements
-    this.createUI();
+    this.load.start()
   }
 
   private createBackground() {
@@ -77,13 +92,10 @@ export class AuthScene extends Scene {
     );
     darkOverlay.setDepth(1);
 
-    // Title
-    this.title = this.add.text(centerX, centerY - 200, 'GAME LOGIN', {
-      fontSize: '48px',
-      color: '#ffffff',
-      fontFamily: 'Arial, sans-serif',
-      fontStyle: 'bold'
-    }).setOrigin(0.5).setDepth(2);
+    // Title - Using Portal Access Alert image from jsDelivr CDN
+    this.title = this.add.image(centerX, centerY - 180, 'portal-title').setDepth(2);
+    this.title.setScale(0.3) // Scale down to fit UI
+    this.title.setOrigin(0.5);
 
     // Username Input
     const usernameInputElement = document.createElement('input');
@@ -99,7 +111,7 @@ export class AuthScene extends Scene {
     usernameInputElement.style.color = '#ffffff';
     usernameInputElement.style.textAlign = 'center';
 
-    this.usernameInput = this.add.dom(centerX, centerY - 100, usernameInputElement).setDepth(2);
+    this.usernameInput = this.add.dom(centerX, centerY - 60, usernameInputElement).setDepth(2);
 
     // Password Input
     const passwordInputElement = document.createElement('input');
@@ -115,25 +127,17 @@ export class AuthScene extends Scene {
     passwordInputElement.style.color = '#ffffff';
     passwordInputElement.style.textAlign = 'center';
 
-    this.passwordInput = this.add.dom(centerX, centerY - 40, passwordInputElement).setDepth(2);
+    this.passwordInput = this.add.dom(centerX, centerY, passwordInputElement).setDepth(2);
 
-    // Login Button
-    this.loginButton = this.add.text(centerX, centerY + 20, 'LOGIN', {
-      fontSize: '32px',
-      color: '#ffffff',
-      backgroundColor: '#0066cc',
-      padding: { x: 30, y: 15 },
-      fontFamily: 'Arial, sans-serif'
-    }).setOrigin(0.5).setInteractive().setDepth(2);
+    // Login Button - Using image from jsDelivr CDN
+    this.loginButton = this.add.image(centerX, centerY + 80, 'login-button').setDepth(2);
+    this.loginButton.setScale(0.15) // Scale down from 1024x1024 to fit UI
+    this.loginButton.setInteractive();
 
-    // Register Button
-    this.registerButton = this.add.text(centerX, centerY + 80, 'REGISTER', {
-      fontSize: '32px',
-      color: '#ffffff',
-      backgroundColor: '#009900',
-      padding: { x: 30, y: 15 },
-      fontFamily: 'Arial, sans-serif'
-    }).setOrigin(0.5).setInteractive().setDepth(2);
+    // Register Button - Using image from jsDelivr CDN
+    this.registerButton = this.add.image(centerX, centerY + 160, 'register-button').setDepth(2);
+    this.registerButton.setScale(0.15) // Scale down from 1024x1024 to fit UI
+    this.registerButton.setInteractive();
 
     // Error Text
     this.errorText = this.add.text(centerX, centerY + 140, '', {
@@ -160,12 +164,12 @@ export class AuthScene extends Scene {
   private setupInteractions() {
     // Login button
     this.loginButton.on('pointerover', () => {
-      this.loginButton.setBackgroundColor('#0088ff');
+      this.loginButton.setTint(0x88ccff); // Light blue tint on hover
       this.input.setDefaultCursor('pointer');
     });
 
     this.loginButton.on('pointerout', () => {
-      this.loginButton.setBackgroundColor('#0066cc');
+      this.loginButton.clearTint(); // Remove tint on hover out
       this.input.setDefaultCursor('default');
     });
 
@@ -175,12 +179,12 @@ export class AuthScene extends Scene {
 
     // Register button
     this.registerButton.on('pointerover', () => {
-      this.registerButton.setBackgroundColor('#00bb00');
+      this.registerButton.setTint(0x88ff88); // Light green tint on hover
       this.input.setDefaultCursor('pointer');
     });
 
     this.registerButton.on('pointerout', () => {
-      this.registerButton.setBackgroundColor('#009900');
+      this.registerButton.clearTint(); // Remove tint on hover out
       this.input.setDefaultCursor('default');
     });
 
