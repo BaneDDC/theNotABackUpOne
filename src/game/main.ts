@@ -32,6 +32,9 @@ const config: Types.Core.GameConfig = {
       debug: false
     }
   },
+  dom: {
+    createContainer: true
+  },
   // New streamlined flow: Loading -> Splash -> MainMenu -> Game
   scene: [Loading, Splash, MainMenu, MainGame, CollisionEditor, RecipeOverlay, Bestiary, PauseMenu, PlungeMiniGame, ItemCatalog, AchievementScene],
 }
