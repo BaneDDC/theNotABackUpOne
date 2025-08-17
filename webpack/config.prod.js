@@ -90,6 +90,13 @@ module.exports = {
       "typeof PLUGIN_CAMERA3D": JSON.stringify(false),
       "typeof PLUGIN_FBINSTANT": JSON.stringify(false),
       "typeof FEATURE_SOUND": JSON.stringify(true),
+      // Define process object for browser environment
+      "process": JSON.stringify({
+        env: {
+          VITE_SUPABASE_URL: process.env.VITE_SUPABASE_URL || 'https://vnsvgrphapsicombzmrn.supabase.co',
+          VITE_SUPABASE_ANON_KEY: process.env.VITE_SUPABASE_ANON_KEY || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZuc3ZncnBoYXBzaWNvbWJ6bXJuIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTUzODgyNDMsImV4cCI6MjA3MDk2NDI0M30.v6Pw_GCOh3bDM_ME22Cqv9jcGl2BacM2aJXRuuJ76EA'
+        }
+      }),
     }),
     new HtmlWebpackPlugin({
       template: "./index.html",

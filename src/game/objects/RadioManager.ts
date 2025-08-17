@@ -750,6 +750,17 @@ export class RadioManager {
     return this.currentSong;
   }
 
+  public setCurrentSong(songIndex: number) {
+    if (!this.isPoweredOn) return; // Don't change songs when powered off
+    
+    // Ensure the song index is within bounds
+    if (songIndex >= 0 && songIndex < this.totalSongs) {
+      this.currentSong = songIndex;
+      this.updateSongDisplay();
+      this.playSong();
+    }
+  }
+
   public getCurrentMusic(): Phaser.Sound.BaseSound | undefined {
     return this.currentMusic;
   }

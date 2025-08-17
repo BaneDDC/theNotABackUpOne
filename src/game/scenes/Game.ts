@@ -95,6 +95,8 @@ export class Game extends Scene {
   
   // Save system
   private saveService: SaveService
+  private autoSaveTimer?: Phaser.Time.TimerEvent
+  private readonly AUTO_SAVE_INTERVAL = 30000 // 30 seconds in milliseconds
 
   constructor() {
     super("Game")
@@ -170,15 +172,15 @@ export class Game extends Scene {
       }
       if (this.radioManager) {
         this.radioManager.setVolume(0.3);
-        this.radioManager.setStation(0);
-        this.radioManager.powerOff();
+        this.radioManager.setCurrentSong(0);
+        this.radioManager.setPowerState(false);
       }
       this.isSinkOn = false;
       
       // Ensure no existing items or enemies are present
       this.clearAllGameObjects();
       
-      console.log('Fresh game state initialized');
+
     }
 
     if (!gameStateLoaded) {
@@ -278,10 +280,8 @@ export class Game extends Scene {
       this.addScore(-points);
     });
 
-    // Listen for save requests from box opening
-    this.events.on('game:saveRequested', () => {
-      this.saveGameState();
-    });
+    // Start auto-save timer (every 30 seconds)
+    this.startAutoSaveTimer();
 
     // Listen for achievement updates to trigger save
     this.events.on('achievements:updated', () => {
@@ -319,7 +319,7 @@ export class Game extends Scene {
       this.FlushCount = 0
       this.updateToiletSprite()
       
-      // Game state will be saved automatically when next box is opened
+      // Game state will be saved automatically every 30 seconds
       
       this.stopPlungerVibrateTimer()
       this.events.emit('toilet:fixed')
@@ -1618,15 +1618,7 @@ export class Game extends Scene {
     // Handle spacebar for coordinate recording
     const spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
     spaceKey.on('down', () => {
-      if (this.alientube) {
-        console.log(`Alientube coordinates: x: ${Math.round(this.alientube.x)}, y: ${Math.round(this.alientube.y)}`);
-      }
-      // Also log occluder position
-      console.log(`Occluder coordinates: x: ${Math.round(this.occluderX)}, y: ${Math.round(this.occluderY)}, width: ${this.occluderWidth}, height: ${this.occluderHeight}`);
-      // Log center box position and size
-      if (this.centerBox) {
-        console.log(`Center box coordinates: x: ${Math.round(this.centerBox.x)}, y: ${Math.round(this.centerBox.y)}, scale: ${this.centerBoxScale.toFixed(2)}`);
-      }
+
     });
     
     // Handle T key for debug retract/extend
@@ -1635,12 +1627,10 @@ export class Game extends Scene {
       if (this.alientube && !this.isAlientubeEmerging) {
         if (this.alientube.y >= this.alientubeTargetY - 5) { // Allow small tolerance for floating point
           // Tube is extended, retract it to portal
-          console.log('Retracting alientube to portal...');
-          this.retractAlientubeToPortal();
-        } else {
-          // Tube is retracted, extend it to target
-          console.log('Extending alientube to target...');
-          this.triggerAlientubeEmergence();
+                   this.retractAlientubeToPortal();
+       } else {
+         // Tube is retracted, extend it to target
+         this.triggerAlientubeEmergence();
         }
       }
     });
@@ -1661,7 +1651,7 @@ export class Game extends Scene {
           const audioDuration = tubeSound.totalDuration * 1000;
           // Make animation 1.5x faster than audio duration, with a minimum of 1500ms
           animationDuration = Math.max(1500, audioDuration * 0.67);
-          console.log(`Tube emergence: Audio duration ${audioDuration}ms, animation duration ${animationDuration}ms (1.5x faster)`);
+          
         }
       } else {
         console.warn('Tube sound not found in cache, using default animation duration');
@@ -1689,7 +1679,7 @@ export class Game extends Scene {
           if (this.centerBox) {
             this.centerBox.setPosition(this.alientube.x + 29, this.alientube.y + 91);
           }
-          console.log('Alientube has emerged from portal!');
+          
           
           // Play vacuum sound when tube is fully extended - loop until retracted
           if (this.cache.audio.exists('vacuum')) {
@@ -1698,7 +1688,7 @@ export class Game extends Scene {
               loop: true // Loop continuously
             });
             this.vacuumSound.play();
-            console.log('Playing looping vacuum sound - tube is fully extended');
+            
           } else {
             console.warn('Vacuum sound not found in cache');
           }
@@ -1727,7 +1717,7 @@ export class Game extends Scene {
           const audioDuration = tubeSound.totalDuration * 1000;
           // Make animation 1.5x faster than audio duration, with a minimum of 1000ms
           animationDuration = Math.max(1000, audioDuration * 0.67);
-          console.log(`Tube retraction: Audio duration ${audioDuration}ms, animation duration ${animationDuration}ms (1.5x faster)`);
+          
         }
       } else {
         console.warn('Tube sound not found in cache, using default animation duration');
@@ -1744,7 +1734,7 @@ export class Game extends Scene {
         onComplete: () => {
           this.isAlientubeEmerging = false;
           this.alientube.setVisible(false); // Hide when fully retracted
-          console.log('Alientube has retracted to portal!');
+          
           
           // Ensure vacuum sound is stopped when retraction is complete
           this.stopVacuumSound();
@@ -1759,7 +1749,7 @@ export class Game extends Scene {
       this.vacuumSound.stop();
       this.vacuumSound.destroy();
       this.vacuumSound = undefined;
-      console.log('Vacuum sound stopped');
+      
     }
   }
   
@@ -2330,6 +2320,9 @@ export class Game extends Scene {
     if (this.toiletPaperFlushTimer) {
       this.toiletPaperFlushTimer.destroy()
     }
+    if (this.autoSaveTimer) {
+      this.autoSaveTimer.destroy()
+    }
     if (this.physics.world) {
       this.physics.world.destroy()
     }
@@ -2395,8 +2388,9 @@ export class Game extends Scene {
     // Emit achievement event for game saving
     this.events.emit('achievement:game_saved');
     
-    try {
-      const gameState = {
+          try {
+        console.log('🔄 Auto-save triggered (30-second interval)');
+        const gameState = {
         tutorialCompleted: !this.tutorialPhase,
         portalCreated: this.portalCreated,
         flushCount: this.FlushCount,
@@ -2407,7 +2401,7 @@ export class Game extends Scene {
         recyclerPurchased: this.trashRecycler ? this.trashRecycler.visible : false,
         goombas: this.getGoombasState(),
         radioVolume: this.radioManager ? this.radioManager.getVolume() : 0.5,
-        radioStation: this.radioManager ? this.radioManager.getCurrentStation() : 0,
+        radioStation: this.radioManager ? this.radioManager.getCurrentSong() : 0,
         radioOn: this.radioManager ? this.radioManager.isPowered() : false,
         sinkOn: this.isSinkOn,
         gooSplatters: this.getGooSplattersState(),
@@ -2419,19 +2413,20 @@ export class Game extends Scene {
         version: "1.0"
       };
 
-      // Save to cloud
-      const cloudSaveResult = await this.saveService.saveGame(gameState);
-      
-      if (cloudSaveResult.success) {
-        this.showSaveNotification('Game saved to cloud!');
-      } else {
-        this.showSaveNotification('Cloud save failed!');
-        console.warn('Cloud save failed:', cloudSaveResult.error);
+              // Save to cloud
+        const cloudSaveResult = await this.saveService.saveGame(gameState);
+        
+        if (cloudSaveResult.success) {
+          console.log('✅ Auto-save completed successfully');
+          this.showSaveNotification('Game saved to cloud!');
+        } else {
+          console.error('❌ Auto-save failed:', cloudSaveResult.error);
+          this.showSaveNotification('Cloud save failed!');
+        }
+          } catch (error) {
+        console.error('❌ Save failed:', error);
+        this.showSaveNotification('Save failed!');
       }
-    } catch (error) {
-      console.error('Save failed:', error);
-      this.showSaveNotification('Save failed!');
-    }
   }
 
   private async loadGameState() {
@@ -2441,25 +2436,26 @@ export class Game extends Scene {
       return false;
     }
 
-    try {
-      // Load from cloud
-      const cloudLoadResult = await this.saveService.loadGame();
-      let gameState: any = null;
+          try {
+        console.log('🔄 Loading saved game state...');
+        // Load from cloud
+        const cloudLoadResult = await this.saveService.loadGame();
+        let gameState: any = null;
 
-      if (cloudLoadResult.success && cloudLoadResult.data) {
-        gameState = cloudLoadResult.data;
-        console.log('Loaded game from cloud');
-      } else {
-        console.log('No cloud save data found');
-        return false;
-      }
+        if (cloudLoadResult.success && cloudLoadResult.data) {
+          gameState = cloudLoadResult.data;
+          console.log('✅ Game state loaded from cloud');
+        } else {
+          console.log('ℹ️ No cloud save data found');
+          return false;
+        }
 
       
-      // Validate save data structure
-      if (!gameState.version || !gameState.hasOwnProperty('tutorialCompleted')) {
-
-        return false;
-      }
+              // Validate save data structure
+        if (!gameState.version || !gameState.hasOwnProperty('tutorialCompleted')) {
+          console.error('❌ Invalid save data structure');
+          return false;
+        }
 
       // Restore tutorial state
       this.tutorialPhase = !gameState.tutorialCompleted;
@@ -2485,13 +2481,13 @@ export class Game extends Scene {
         this.radioManager.setVolume(gameState.radioVolume);
       }
       if (gameState.radioStation !== undefined && this.radioManager) {
-        this.radioManager.setStation(gameState.radioStation);
+        this.radioManager.setCurrentSong(gameState.radioStation);
       }
       if (gameState.radioOn !== undefined && this.radioManager) {
         if (gameState.radioOn) {
-          this.radioManager.powerOn();
+          this.radioManager.setPowerState(true);
         } else {
-          this.radioManager.powerOff();
+          this.radioManager.setPowerState(false);
         }
       }
 
@@ -2559,17 +2555,17 @@ export class Game extends Scene {
         });
       }
 
-      // Emit event that a saved game was loaded - delay it to ensure hint button is ready
-      this.time.delayedCall(2000, () => {
-        this.events.emit('game:savedGameLoaded');
-      });
+              // Emit event that a saved game was loaded - delay it to ensure hint button is ready
+        this.time.delayedCall(2000, () => {
+          this.events.emit('game:savedGameLoaded');
+        });
 
-
-      return true;
-    } catch (error) {
-
-      return false;
-    }
+        console.log('✅ Game state restored successfully');
+        return true;
+          } catch (error) {
+        console.error('❌ Load game state error:', error);
+        return false;
+      }
   }
 
   private getAllItemsState(): Array<{name: string, x: number, y: number, scale: number}> {
@@ -2854,6 +2850,27 @@ export class Game extends Scene {
     });
   }
 
+  private startAutoSaveTimer() {
+    // Stop any existing timer
+    this.stopAutoSaveTimer();
+    
+    // Create timer that saves every 30 seconds
+    this.autoSaveTimer = this.time.addEvent({
+      delay: this.AUTO_SAVE_INTERVAL,
+      callback: () => {
+        this.saveGameState();
+      },
+      loop: true
+    });
+  }
+
+  private stopAutoSaveTimer() {
+    if (this.autoSaveTimer) {
+      this.autoSaveTimer.destroy();
+      this.autoSaveTimer = undefined;
+    }
+  }
+
   private showSaveNotification() {
     if (!this.sceneManager) return
     this.sceneManager.showSaveNotification()
@@ -2920,7 +2937,7 @@ export class Game extends Scene {
     if (this.cache.audio.exists('suck')) {
       const suckSound = this.sound.add('suck', { volume: 1.0 });
       suckSound.play();
-      console.log('Playing suck sound - item placed in alientube');
+      
     } else {
       console.warn('Suck sound not found in cache');
     }
@@ -2989,7 +3006,7 @@ export class Game extends Scene {
       // Complete the order
       const orderCompleted = (this as any).alienOrderSystemInstance.checkOrderCompletion(requestedItem);
       if (orderCompleted) {
-        console.log(`Alien order completed with item: ${itemName}`);
+        
         // Mark that this item completed an order so tube retracts after animation
         item.completedAlienOrder = true;
       }
@@ -3325,6 +3342,6 @@ export class Game extends Scene {
       }
     });
     
-    console.log('All game objects cleared for fresh start');
+    
   }
 }
