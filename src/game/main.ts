@@ -1,6 +1,7 @@
 import { Game as MainGame } from "./scenes/Game"
 import { Loading } from "./scenes/Loading"
 import { Splash } from "./scenes/Splash"
+import { AuthScene } from "./scenes/AuthScene"
 import { MainMenu } from "./scenes/MainMenu"
 import { CollisionEditor } from "./objects/hitBox"
 import { RecipeOverlay } from "./scenes/RecipeOverlay"
@@ -35,8 +36,8 @@ const config: Types.Core.GameConfig = {
   dom: {
     createContainer: true
   },
-  // New streamlined flow: Loading -> Splash -> MainMenu -> Game
-  scene: [Loading, Splash, MainMenu, MainGame, CollisionEditor, RecipeOverlay, Bestiary, PauseMenu, PlungeMiniGame, ItemCatalog, AchievementScene],
+  // New streamlined flow: Loading -> Splash -> AuthScene -> MainMenu -> Game
+  scene: [Loading, Splash, AuthScene, MainMenu, MainGame, CollisionEditor, RecipeOverlay, Bestiary, PauseMenu, PlungeMiniGame, ItemCatalog, AchievementScene],
 }
 
 const StartGame = (parent: string) => {

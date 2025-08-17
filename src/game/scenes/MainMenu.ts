@@ -1,8 +1,6 @@
 // src/game/scenes/MainMenu.ts
 
 import { Scene } from "phaser";
-import { AuthUI } from "../objects/ui/AuthUI";
-import { AuthService } from "../../services/AuthService";
 
 export class MainMenu extends Scene {
   private backgroundImage!: Phaser.GameObjects.Image;
@@ -20,37 +18,24 @@ export class MainMenu extends Scene {
   private rightHandedText!: Phaser.GameObjects.Text;
   private handednessLabel!: Phaser.GameObjects.Text;
   private selectedHandedness: 'left' | 'right' = 'right';
-  private authUI!: AuthUI;
-  private authService: AuthService;
-  private loginButton!: Phaser.GameObjects.Image;
-  private isAuthenticated: boolean = false;
+  private logoutButton!: Phaser.GameObjects.Text;
 
   constructor() {
     super("MainMenu");
-    this.authService = AuthService.getInstance();
   }
 
-  async create() {
+  create() {
     // Create background
     this.createBackground();
     
     // Start main menu music
     this.startMainMenuMusic();
     
-    // Check authentication status
-    await this.checkAuthenticationStatus();
-    
     // Check for save data
     this.checkForSaveData();
     
     // Create main menu UI
     this.createMainMenuUI();
-    
-    // Create AuthUI
-    this.authUI = new AuthUI(this);
-    
-    // Set up auth event listeners
-    this.setupAuthEventListeners();
   }
 
   private createBackground() {
@@ -195,11 +180,14 @@ export class MainMenu extends Scene {
     // Create achievement button
     this.createAchievementButton(centerX, centerY);
 
-    // Create login button
-    this.createLoginButton(centerX, centerY);
+    // Create logout button
+    this.createLogoutButton();
 
     // Create save game choice UI (initially hidden)
     this.createSaveGameChoiceUI(centerX, centerY);
+    
+    // Check authentication status and show/hide logout button
+    this.checkAuthenticationStatus();
   }
 
   private createAchievementButton(centerX: number, centerY: number) {
@@ -226,80 +214,92 @@ export class MainMenu extends Scene {
     });
   }
 
-  private async checkAuthenticationStatus() {
-    try {
-      this.isAuthenticated = await this.authService.isAuthenticated();
-      console.log('Authentication status:', this.isAuthenticated ? 'Authenticated' : 'Not authenticated');
-    } catch (error) {
-      console.error('Error checking authentication status:', error);
-      this.isAuthenticated = false;
-    }
-  }
 
-  private setupAuthEventListeners() {
-    // Listen for successful login
-    this.events.on('auth:loginSuccess', () => {
-      this.isAuthenticated = true;
-      this.updateLoginButton();
-      console.log('Login successful');
+
+  private createLogoutButton() {
+    // Create logout button in upper left corner
+    this.logoutButton = this.add.text(50, 50, 'LOGOUT', {
+      fontSize: '18px',
+      color: '#ffffff',
+      backgroundColor: '#cc0000',
+      padding: { x: 15, y: 8 },
+      fontFamily: 'Arial, sans-serif'
     });
-
-    // Listen for successful registration
-    this.events.on('auth:registerSuccess', () => {
-      this.isAuthenticated = true;
-      this.updateLoginButton();
-      console.log('Registration successful');
-    });
-  }
-
-  private createLoginButton(centerX: number, centerY: number) {
-    // Create login button in top left corner
-    this.loginButton = this.add.image(50, 50, 'trophy'); // Using trophy as placeholder
-    this.loginButton.setDisplaySize(60, 60);
-    this.loginButton.setDepth(2);
-    this.loginButton.setInteractive();
+    this.logoutButton.setOrigin(0, 0);
+    this.logoutButton.setDepth(2);
+    this.logoutButton.setInteractive();
     
     // Add hover effects
-    this.loginButton.on('pointerover', () => {
-      this.loginButton.setDisplaySize(63, 63);
+    this.logoutButton.on('pointerover', () => {
+      this.logoutButton.setBackgroundColor('#ff0000');
       this.input.setDefaultCursor('pointer');
     });
     
-    this.loginButton.on('pointerout', () => {
-      this.loginButton.setDisplaySize(60, 60);
+    this.logoutButton.on('pointerout', () => {
+      this.logoutButton.setBackgroundColor('#cc0000');
       this.input.setDefaultCursor('default');
     });
     
     // Add click handler
-    this.loginButton.on('pointerdown', () => {
-      if (this.isAuthenticated) {
-        this.handleLogout();
-      } else {
-        this.authUI.show();
-      }
+    this.logoutButton.on('pointerdown', () => {
+      this.handleLogout();
     });
-    
-    this.updateLoginButton();
-  }
 
-  private updateLoginButton() {
-    if (this.loginButton) {
-      if (this.isAuthenticated) {
-        this.loginButton.setTint(0x00ff00); // Green for logged in
-      } else {
-        this.loginButton.setTint(0xff0000); // Red for not logged in
-      }
-    }
+    // Initially hide logout button (show only when logged in)
+    this.logoutButton.setVisible(false);
   }
 
   private async handleLogout() {
     try {
-      await this.authService.logoutUser();
-      this.isAuthenticated = false;
-      this.updateLoginButton();
-      console.log('Logout successful');
+      const { AuthService } = await import('../../services/AuthService');
+      const authService = AuthService.getInstance();
+      await authService.logoutUser();
+      
+      // Go back to auth scene
+      this.scene.start('AuthScene');
     } catch (error) {
-      console.error('Error during logout:', error);
+      console.error('Logout failed:', error);
+    }
+  }
+
+  private disableMainMenu() {
+    // Disable all interactive elements
+    if (this.startButton) this.startButton.disableInteractive();
+    if (this.leftHandedButton) this.leftHandedButton.disableInteractive();
+    if (this.rightHandedButton) this.rightHandedButton.disableInteractive();
+    if (this.logoutButton) this.logoutButton.disableInteractive();
+    
+    // Disable input temporarily
+    this.input.enabled = false;
+  }
+
+  private enableMainMenu() {
+    // Re-enable all interactive elements
+    if (this.startButton) this.startButton.setInteractive();
+    if (this.leftHandedButton) this.leftHandedButton.setInteractive();
+    if (this.rightHandedButton) this.rightHandedButton.setInteractive();
+    if (this.logoutButton) this.logoutButton.setInteractive();
+    
+    // Re-enable input
+    this.input.enabled = true;
+  }
+
+  private async checkAuthenticationStatus() {
+    try {
+      const { AuthService } = await import('../../services/AuthService');
+      const authService = AuthService.getInstance();
+      const isAuthenticated = await authService.isAuthenticated();
+      
+      if (isAuthenticated) {
+        // User is logged in, show logout button
+        this.logoutButton.setVisible(true);
+      } else {
+        // User is not logged in, hide logout button
+        this.logoutButton.setVisible(false);
+      }
+    } catch (error) {
+      console.error('Error checking authentication status:', error);
+      this.logoutButton.setVisible(false);
     }
   }
 
@@ -660,15 +660,5 @@ export class MainMenu extends Scene {
         this.scene.start('Game');
       });
     }
-  }
-
-  destroy() {
-    if (this.authUI) {
-      this.authUI.destroy();
-    }
-    if (this.mainMenuMusic && this.mainMenuMusic.isPlaying) {
-      this.mainMenuMusic.stop();
-    }
-    super.destroy();
   }
 }

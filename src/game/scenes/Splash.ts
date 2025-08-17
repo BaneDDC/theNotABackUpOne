@@ -26,9 +26,9 @@ export class Splash extends Scene {
       ease: 'Linear'
     });
 
-    // Wait 5 seconds then transition to main menu
+    // Wait 5 seconds then transition to auth scene
     this.time.delayedCall(5000, () => {
-      this.scene.start('MainMenu');
+      this.scene.start('AuthScene');
     });
   }
 }
