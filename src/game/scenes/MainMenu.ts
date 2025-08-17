@@ -19,7 +19,7 @@ export class MainMenu extends Scene {
   private rightHandedText!: Phaser.GameObjects.Text;
   private handednessLabel!: Phaser.GameObjects.Text;
   private selectedHandedness: 'left' | 'right' = 'right';
-  private logoutButton!: Phaser.GameObjects.Text;
+  private logoutButton!: Phaser.GameObjects.Image;
 
   constructor() {
     super("MainMenu");
@@ -243,26 +243,20 @@ export class MainMenu extends Scene {
 
 
   private createLogoutButton() {
-    // Create logout button in upper left corner
-    this.logoutButton = this.add.text(50, 50, 'LOGOUT', {
-      fontSize: '18px',
-      color: '#ffffff',
-      backgroundColor: '#cc0000',
-      padding: { x: 15, y: 8 },
-      fontFamily: 'Arial, sans-serif'
-    });
-    this.logoutButton.setOrigin(0, 0);
+    // Create logout button in upper left corner using image
+    this.logoutButton = this.add.image(50, 50, 'logout');
+    this.logoutButton.setDisplaySize(80, 80); // Scale down from 1024x1024 to 80x80 for larger button size
     this.logoutButton.setDepth(2);
     this.logoutButton.setInteractive();
     
     // Add hover effects
     this.logoutButton.on('pointerover', () => {
-      this.logoutButton.setBackgroundColor('#ff0000');
+      this.logoutButton.setTint(0xffcccc); // Light red tint on hover
       this.input.setDefaultCursor('pointer');
     });
     
     this.logoutButton.on('pointerout', () => {
-      this.logoutButton.setBackgroundColor('#cc0000');
+      this.logoutButton.clearTint(); // Remove tint on hover out
       this.input.setDefaultCursor('default');
     });
     

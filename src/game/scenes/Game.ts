@@ -186,11 +186,11 @@ export class Game extends Scene {
       this.currentScore = 0;
       console.log('🔄 Starting new game, score reset to:', this.currentScore);
       
-      // Reset radio manager to fresh state
+      // Reset radio manager to fresh state - keep default track 4 and 20% volume
       if (this.radioManager) {
-        this.radioManager.setVolume(0.3);
-        this.radioManager.setCurrentSong(0);
-        this.radioManager.setPowerState(false);
+        this.radioManager.setVolume(0.2);
+        this.radioManager.setCurrentSong(3); // Keep track 4 (index 3)
+        this.radioManager.setPowerState(true); // Keep radio on by default
       }
       this.isSinkOn = false;
       
@@ -227,16 +227,7 @@ export class Game extends Scene {
     ;(this as any).alienHead = alienOrderUI.alienHead
     ;(this as any).orderCard = alienOrderUI.card
     
-    // Add keyboard shortcut to test glorious audio (for debugging)
-    this.input.keyboard?.on('keydown-G', () => {
-      console.log('🎵 Testing glorious audio with G key...');
-      if (this.sound.get('glorious')) {
-        this.sound.play('glorious', { volume: 1.0 });
-        console.log('✅ Test audio playing!');
-      } else {
-        console.log('❌ Glorious audio not available for testing');
-      }
-    });
+    // Debug functionality removed - G key no longer tests glorious audio
 
     // Set a random alien head when the system is created (removed timer)
     alienOrderSystem.setRandomAlien()
@@ -296,16 +287,23 @@ export class Game extends Scene {
 
     this.events.on('tutorial:complete', () => {
       this.completeTutorial();
-      // Notify alien order system that tutorial is completed
-      if ((this as any).alienOrderSystemInstance) {
-        (this as any).alienOrderSystemInstance.setTutorialCompleted(true);
-      }
+      // Note: Alien order system notification is now handled via 'glorious:audio_completed' event
+      // which provides a 2-second delay after the glorious audio finishes
     });
 
     // Listen for tutorial goo destruction to play glorious audio immediately
     this.events.on('tutorial:goo_destroyed', () => {
       console.log('🔄 Tutorial goo destroyed - playing glorious audio immediately!');
       this.playGloriousAudio();
+    });
+    
+    // Listen for glorious audio completion to start alien order system
+    this.events.on('glorious:audio_completed', () => {
+      console.log('🔄 Glorious audio completed, now starting alien order system...');
+      // Notify alien order system that tutorial is completed
+      if ((this as any).alienOrderSystemInstance) {
+        (this as any).alienOrderSystemInstance.setTutorialCompleted(true);
+      }
     });
 
     this.events.on('toilet:flush', () => {
@@ -632,6 +630,9 @@ export class Game extends Scene {
     
     // Emit tutorial completion event
     this.events.emit('tutorial:complete');
+    
+    // Note: Alien order system will be started via 'glorious:audio_completed' event
+    // which is emitted 2 seconds after the glorious audio finishes playing
   }
 
   private startToiletPulsinging() {
@@ -1056,12 +1057,21 @@ export class Game extends Scene {
       if (gloriousSound) {
         console.log('✅ Glorious audio found, playing at 100% volume...');
         // Ensure 100% volume and play
-        this.sound.setVolume(1.0);
         this.sound.play('glorious', { volume: 1.0 });
         console.log('🎵 Glorious tutorial completion audio playing at 100% volume!');
         
         // Start shaking the hint button during audio playback
         this.shakeHintButtonDuringAudio(gloriousSound);
+        
+        // Listen for when glorious audio completes to emit event for alien order system
+        gloriousSound.once('complete', () => {
+          console.log('🎵 Glorious audio completed, will start alien order system in 2 seconds...');
+          // Wait 2 seconds after glorious audio finishes before starting alien order system
+          this.time.delayedCall(2000, () => {
+            console.log('🔄 2 second delay completed, now starting alien order system...');
+            this.events.emit('glorious:audio_completed');
+          });
+        });
       } else {
         console.log('❌ Glorious audio not found in sound manager');
         // Try to play directly at 100% volume
@@ -1070,6 +1080,12 @@ export class Game extends Scene {
         
         // Still try to shake the hint button
         this.shakeHintButtonDuringAudio();
+        
+        // Fallback: wait 5 seconds (estimated audio duration) + 2 seconds before starting alien order system
+        this.time.delayedCall(7000, () => {
+          console.log('⏰ Fallback: 7 second delay completed, now starting alien order system...');
+          this.events.emit('glorious:audio_completed');
+        });
       }
     } catch (error) {
       console.error('❌ Error playing glorious audio:', error);
@@ -1409,12 +1425,7 @@ export class Game extends Scene {
   }
 
   private setupCollisionEditorKey() {
-    // Add F9 key listener to launch collision editor
-    this.input.keyboard!.on('keydown-F9', () => {
-      // Pause this scene and launch the collision editor
-      this.scene.pause()
-      this.scene.launch('CollisionEditor')
-    })
+    // Debug functionality removed - F9 key no longer launches collision editor
 
     // Add F8 key listener to launch item catalog
     this.input.keyboard!.on('keydown-F8', () => {
@@ -1485,38 +1496,7 @@ export class Game extends Scene {
       }
     });
 
-    // Add = key listener to give 10 goo (cheat/debug feature)
-    this.input.keyboard!.on('keydown', (event: KeyboardEvent) => {
-      if (event.key === '=') {
-        // Only give goo if no UI is open (store manager not open)
-        if (!this.storeManager || !this.storeManager.isOpen()) {
-          // Give 10 goo to the player
-          if (this.gooCounter) {
-            this.gooCounter.collectGoo(10)
-            
-            // Show a brief notification
-            const notification = this.add.text(this.scale.width / 2, this.scale.height / 2, "+10 Goo!", {
-              fontSize: "24px",
-              color: "#27ae60",
-              backgroundColor: "rgba(0,0,0,0.8)",
-              padding: { x: 12, y: 8 }
-            })
-            notification.setOrigin(0.5)
-            notification.setDepth(3000)
-            
-            // Animate and fade out the notification
-            this.tweens.add({
-              targets: notification,
-              y: notification.y - 50,
-              alpha: 0,
-              duration: 1500,
-              ease: 'Power2.easeOut',
-              onComplete: () => notification.destroy()
-            })
-          }
-        }
-      }
-    })
+    // Debug functionality removed - equals button no longer gives free goo
   }
 
   private logTextureInfo(key: string, obj?: Phaser.GameObjects.GameObject) {
@@ -1803,25 +1783,7 @@ export class Game extends Scene {
     
     // Alientube is no longer interactive for dragging or resizing
     
-    // Handle spacebar for coordinate recording
-    const spaceKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE);
-    spaceKey.on('down', () => {
-
-    });
-    
-    // Handle T key for debug retract/extend
-    const tKey = this.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.T);
-    tKey.on('down', () => {
-      if (this.alientube && !this.isAlientubeEmerging) {
-        if (this.alientube.y >= this.alientubeTargetY - 5) { // Allow small tolerance for floating point
-          // Tube is extended, retract it to portal
-                   this.retractAlientubeToPortal();
-       } else {
-         // Tube is retracted, extend it to target
-         this.triggerAlientubeEmergence();
-        }
-      }
-    });
+    // Debug functionality removed - spacebar no longer logs coordinates
   }
   
   public triggerAlientubeEmergence(): void {

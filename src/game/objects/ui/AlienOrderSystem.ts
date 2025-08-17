@@ -113,7 +113,7 @@ export class AlienOrderSystem {
     this.setupInteraction()
 
     // Add spacebar key listener to log position
-    this.setupSpacebarListener()
+    // Debug functionality removed - spacebar no longer logs position information
 
     // Now check tutorial completion status after container is created
     this.checkTutorialCompletionStatus()
@@ -323,23 +323,7 @@ export class AlienOrderSystem {
     this.alienHead.setPosition(50, 0)
   }
 
-  private setupSpacebarListener(): void {
-    const spaceKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
-    
-    spaceKey.on('down', () => {
-      console.log('Alien Order System Position:', {
-        containerX: Math.round(this.container.x),
-        containerY: Math.round(this.container.y),
-        cardX: Math.round(this.card.x),
-        cardY: Math.round(this.card.y),
-        alienX: Math.round(this.alienHead.x),
-        isVisible: this.isVisible,
-        permanentX: this.PERMANENT_X,
-        permanentY: this.PERMANENT_Y,
-        hiddenX: this.HIDDEN_X
-      })
-    })
-  }
+  // Debug functionality removed - spacebar listener method no longer needed
 
   // Method to change the alien head
   public setAlienHead(alienType: 'alien1' | 'alien2' | 'alien3' | 'alien4'): void {

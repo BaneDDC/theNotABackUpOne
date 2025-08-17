@@ -20,7 +20,7 @@ export class RadioManager {
   private powerButtonText?: Phaser.GameObjects.Text;
   
   private isControlsVisible: boolean = false;
-  private currentVolume: number = 0.3; // 0 to 1
+  private currentVolume: number = 0.2; // 0 to 1 - default to 20%
   private currentSong: number = 3; // Start with the 4th track (index 3)
   private totalSongs: number = 4; // Updated from 5 to 4 since we now have 4 actual songs
   private isDraggingDial: boolean = false;

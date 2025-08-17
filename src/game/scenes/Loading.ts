@@ -84,6 +84,8 @@ export class Loading extends Scene {
     this.load.image('deletenew', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/deletenew.png');
     this.load.image('cancel', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/cancel.png');
     this.load.image('flytoxic', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/flytoxic.png');
+    this.load.image('waffle', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/waffle.png');
+    this.load.image('logout', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/logout%20.png');
     this.load.image('lefthand', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/lefthand.png');
     this.load.image('righthand', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/righthand.png');
     this.load.image('portalflush', 'https://cdn.jsdelivr.net/gh/localgod13/merge-assets@main/portalflush.png');
