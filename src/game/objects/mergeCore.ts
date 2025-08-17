@@ -913,66 +913,77 @@ export class PortalSpawner {
   }
 
   public spawnAtPortal(name: string) {
-
+    console.log('🔄 PortalSpawner: Attempting to spawn item at portal:', name);
     
-    // Play alternating portal sound when spawning items
-    this.playAlternatingPortalSound();
-    
-    // Add this result to our merged results pool for future reference
-    this.addMergedResult(name);
-    
-    // Check if this is an enemy type that should use EnemyManager
-    if (name === "Unstable Goo" || name === "Confetti Storm" || name === "Enemy: Goo Tornado" || name.startsWith("Enemy:")) {
-      // Get enemy manager from scene and spawn enemy
-      const gameScene = this.scene as any;
-      if (gameScene.getEnemyManager) {
-        const enemyManager = gameScene.getEnemyManager();
-        const enemySprite = enemyManager.spawnEnemy(name, this.mouth.x, this.mouth.y);
-        
-        if (enemySprite) {
-          // Find a random landing spot
-          const landingSpot = this.findRandomLandingSpot();
+    try {
+      // Play alternating portal sound when spawning items
+      this.playAlternatingPortalSound();
+      
+      // Add this result to our merged results pool for future reference
+      this.addMergedResult(name);
+      
+      // Check if this is an enemy type that should use EnemyManager
+      if (name === "Unstable Goo" || name === "Confetti Storm" || name === "Enemy: Goo Tornado" || name.startsWith("Enemy:")) {
+        console.log('🔄 Spawning enemy type:', name);
+        // Get enemy manager from scene and spawn enemy
+        const gameScene = this.scene as any;
+        if (gameScene.getEnemyManager) {
+          const enemyManager = gameScene.getEnemyManager();
+          const enemySprite = enemyManager.spawnEnemy(name, this.mouth.x, this.mouth.y);
           
-          // Create a bouncing trajectory to the landing spot
-          this.createBouncingTrajectory(enemySprite, landingSpot.x, landingSpot.y);
-          
-          // Use the portal sprite for visual feedback
-          if (this.portalSprite) {
-            this.scene.tweens.add({ 
-              targets: this.portalSprite, 
-              scaleX: 1.2, 
-              scaleY: 1.2, 
-              duration: 140, 
-              yoyo: true 
-            });
+          if (enemySprite) {
+            console.log('✅ Enemy spawned successfully');
+            // Find a random landing spot
+            const landingSpot = this.findRandomLandingSpot();
+            
+            // Create a bouncing trajectory to the landing spot
+            this.createBouncingTrajectory(enemySprite, landingSpot.x, landingSpot.y);
+            
+            // Use the portal sprite for visual feedback
+            if (this.portalSprite) {
+              this.scene.tweens.add({ 
+                targets: this.portalSprite, 
+                scaleX: 1.2, 
+                scaleY: 1.2, 
+                duration: 140, 
+                yoyo: true 
+              });
+            }
+          } else {
+            console.log('❌ Enemy spawn failed');
           }
         } else {
-
+          console.log('❌ No enemy manager available');
         }
-      } else {
-
+        return; // Exit early for enemies
       }
-      return; // Exit early for enemies
-    }
-    
-    // Spawn exactly 1 item as reward for successful merge
-    const obj = this.items.spawn(name, this.mouth.x, this.mouth.y, 0x55aa55);
-    
-    // Check if spawn was successful before proceeding
-    if (!obj) {
-
-      return;
-    }
-    
-    // Find a random landing spot that doesn't overlap with existing items
-    const landingSpot = this.findRandomLandingSpot();
-    
-    // Create a bouncing trajectory to the landing spot
-    this.createBouncingTrajectory(obj, landingSpot.x, landingSpot.y);
-    
-    // Use the portal sprite for visual feedback
-    if (this.portalSprite) {
-      this.scene.tweens.add({ targets: this.portalSprite, scaleX: 1.2, scaleY: 1.2, duration: 140, yoyo: true });
+      
+      // Spawn exactly 1 item as reward for successful merge
+      console.log('🔄 Spawning regular item:', name);
+      const obj = this.items.spawn(name, this.mouth.x, this.mouth.y, 0x55aa55);
+      
+      // Check if spawn was successful before proceeding
+      if (!obj) {
+        console.log('❌ Item spawn failed for:', name);
+        return;
+      }
+      
+      console.log('✅ Item spawned successfully, creating trajectory');
+      
+      // Find a random landing spot that doesn't overlap with existing items
+      const landingSpot = this.findRandomLandingSpot();
+      
+      // Create a bouncing trajectory to the landing spot
+      this.createBouncingTrajectory(obj, landingSpot.x, landingSpot.y);
+      
+      // Use the portal sprite for visual feedback
+      if (this.portalSprite) {
+        this.scene.tweens.add({ targets: this.portalSprite, scaleX: 1.2, scaleY: 1.2, duration: 140, yoyo: true });
+      }
+      
+      console.log('✅ Item spawn and trajectory complete for:', name);
+    } catch (error) {
+      console.error('❌ Error in spawnAtPortal:', error);
     }
   }
 
@@ -1496,13 +1507,17 @@ export class MergeToilet {
   }
 
   private onFlush() {
+    console.log('🔄 Toilet flush triggered, waiting items:', this.waiting.length);
+    
     // Check if we have exactly 1 item and it's a duck
     if (this.waiting.length === 1) {
       const [singleItem] = this.waiting.splice(0, 1)
       const itemName = singleItem.itemName!
+      console.log('🔄 Processing single item:', itemName);
       
       // If the single item is a duck, spawn the same duck item from portal (no special sound)
       if (this.isDuckItem(itemName)) {
+        console.log('✅ Duck item detected, spawning same item from portal');
         // Destroy the duck item and spawn the same duck item from portal
         this.scene.tweens.add({
           targets: [singleItem],
@@ -1518,6 +1533,7 @@ export class MergeToilet {
         })
         return
       } else if (itemName === "Wet Mop") {
+        console.log('✅ Wet Mop detected, spawning same item from portal');
         // If the single item is a wet mop, spawn the same wet mop from portal (no special sound)
         this.scene.tweens.add({
           targets: [singleItem],
@@ -1533,6 +1549,7 @@ export class MergeToilet {
         })
         return
       } else {
+        console.log('⚠️ Single non-duck item, spawning penalty');
         // Single non-duck, non-wet-mop item - handle normally (destroy and spawn penalty)
         this.scene.tweens.add({
           targets: [singleItem],
@@ -1554,16 +1571,24 @@ export class MergeToilet {
     }
 
     // Only process pairs if we have exactly 2 items
-    if (this.waiting.length !== 2) return
+    if (this.waiting.length !== 2) {
+      console.log('⚠️ Expected 2 items for merge, found:', this.waiting.length);
+      return;
+    }
 
     const [aObj, bObj] = this.waiting.splice(0, 2)
     const a = aObj.itemName!
     const b = bObj.itemName!
     const result = getMergeResult(a, b)
+    
+    console.log('🔄 Attempting merge:', a, '+', b, '=', result || 'INVALID');
 
     if (result) {
+      console.log('✅ Valid merge result:', result);
+      
       // Check if this is the tutorial flush and emit event for hint controller (only if tutorial not completed)
       if (!this.hasTutorialDownPlayed && this.isTutorialMerge(a, b, result) && !this.isTutorialCompleted()) {
+        console.log('🎓 Tutorial merge completed');
         this.scene.events.emit('tutorial:mergeComplete')
         this.hasTutorialDownPlayed = true // Ensure it only plays once
       }
@@ -1582,6 +1607,7 @@ export class MergeToilet {
       this.scene.events.emit('achievement:discovery', a, b, result);
 
       // Emit event for successful merge (this will spawn from portal)
+      console.log('🚀 Emitting toilet:merged event for:', result);
       this.scene.events.emit("toilet:merged", result)
       
       // Emit achievement event for merge completion
@@ -1594,6 +1620,7 @@ export class MergeToilet {
         this.scene.events.emit("score:add", scorePoints);
       }
     } else {
+      console.log('❌ Invalid merge, spawning penalty');
       // Invalid merge - destroy items and spawn Unstable Goo as penalty
       this.scene.tweens.add({
         targets: [aObj, bObj],

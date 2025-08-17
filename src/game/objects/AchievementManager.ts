@@ -446,8 +446,9 @@ export class AchievementManager {
     bg.lineStyle(2, 0xf39c12);
     bg.strokeRoundedRect(0, 0, 400, 80, 10);
 
-    // Create achievement icon (placeholder)
-    const icon = this.scene.add.circle(30, 40, 15, 0xf39c12);
+    // Create achievement icon using trophy image
+    const icon = this.scene.add.image(30, 40, 'trophy');
+    icon.setDisplaySize(30, 30); // Scale down from 1024x1024 to 30x30 for notification size
 
     // Create title text
     const titleText = this.scene.add.text(60, 20, 'Achievement Unlocked!', {

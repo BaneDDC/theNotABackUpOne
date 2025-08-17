@@ -1,6 +1,7 @@
 // src/game/scenes/MainMenu.ts
 
 import { Scene } from "phaser";
+import { SaveService } from "../../services/SaveService";
 
 export class MainMenu extends Scene {
   private backgroundImage!: Phaser.GameObjects.Image;
@@ -18,6 +19,7 @@ export class MainMenu extends Scene {
   private rightHandedText!: Phaser.GameObjects.Text;
   private handednessLabel!: Phaser.GameObjects.Text;
   private selectedHandedness: 'left' | 'right' = 'right';
+  private logoutButton!: Phaser.GameObjects.Image;
 
   constructor() {
     super("MainMenu");
@@ -31,7 +33,12 @@ export class MainMenu extends Scene {
     this.startMainMenuMusic();
     
     // Check for save data
-    this.checkForSaveData();
+    this.checkForSaveData().then(() => {
+      // Update UI after save data check completes
+      if (this.hasSaveData && this.continueButton) {
+        this.continueButton.setVisible(true);
+      }
+    });
     
     // Create main menu UI
     this.createMainMenuUI();
@@ -76,35 +83,55 @@ export class MainMenu extends Scene {
     }
   }
 
-  private checkForSaveData() {
-    // Check if there's any meaningful save data
-    const discoveries = localStorage.getItem('bestiary_discoveries');
-    const gameState = localStorage.getItem('toilet_merge_game_state');
-    const volume = localStorage.getItem('game_volume');
-    
-    let discoveryCount = 0;
-    if (discoveries) {
-      try {
-        const parsed = JSON.parse(discoveries);
-        discoveryCount = parsed.length;
-      } catch (e) {
-        discoveryCount = 0;
+  private async checkForSaveData() {
+    // Check if there's any meaningful save data from cloud
+    try {
+      const saveService = SaveService.getInstance();
+      const cloudSaveResult = await saveService.hasSaveData();
+      
+      // Check for local discoveries (these might still be stored locally)
+      const discoveries = localStorage.getItem('bestiary_discoveries');
+      let discoveryCount = 0;
+      if (discoveries) {
+        try {
+          const parsed = JSON.parse(discoveries);
+          discoveryCount = parsed.length;
+        } catch (e) {
+          discoveryCount = 0;
+        }
       }
-    }
 
-    let hasGameState = false;
-    if (gameState) {
-      try {
-        const parsed = JSON.parse(gameState);
-        // Check if it's a valid game state with meaningful progress
-        hasGameState = parsed.version && (parsed.tutorialCompleted || (parsed.items && parsed.items.length > 0));
-      } catch (e) {
-        hasGameState = false;
+      // Consider save data meaningful if there are cloud saves OR discoveries
+      this.hasSaveData = cloudSaveResult || discoveryCount > 0;
+      console.log('🔄 Save data check - Cloud save:', cloudSaveResult, 'Discoveries:', discoveryCount, 'Has save data:', this.hasSaveData);
+    } catch (error) {
+      console.error('Error checking for save data:', error);
+      // Fallback to local storage check
+      const discoveries = localStorage.getItem('bestiary_discoveries');
+      const gameState = localStorage.getItem('toilet_merge_game_state');
+      
+      let discoveryCount = 0;
+      if (discoveries) {
+        try {
+          const parsed = JSON.parse(discoveries);
+          discoveryCount = parsed.length;
+        } catch (e) {
+          discoveryCount = 0;
+        }
       }
-    }
 
-    // Consider save data meaningful if there are discoveries OR game state
-    this.hasSaveData = discoveryCount > 0 || hasGameState;
+      let hasGameState = false;
+      if (gameState) {
+        try {
+          const parsed = JSON.parse(gameState);
+          hasGameState = parsed.version && (parsed.tutorialCompleted || (parsed.items && parsed.items.length > 0));
+        } catch (e) {
+          hasGameState = false;
+        }
+      }
+
+      this.hasSaveData = discoveryCount > 0 || hasGameState;
+    }
   }
 
   private createMainMenuUI() {
@@ -179,8 +206,14 @@ export class MainMenu extends Scene {
     // Create achievement button
     this.createAchievementButton(centerX, centerY);
 
+    // Create logout button
+    this.createLogoutButton();
+
     // Create save game choice UI (initially hidden)
     this.createSaveGameChoiceUI(centerX, centerY);
+    
+    // Check authentication status and show/hide logout button
+    this.checkAuthenticationStatus();
   }
 
   private createAchievementButton(centerX: number, centerY: number) {
@@ -205,6 +238,89 @@ export class MainMenu extends Scene {
     achievementButton.on('pointerdown', () => {
       this.scene.start('AchievementScene');
     });
+  }
+
+
+
+  private createLogoutButton() {
+    // Create logout button in upper left corner using image
+    this.logoutButton = this.add.image(50, 50, 'logout');
+    this.logoutButton.setDisplaySize(80, 80); // Scale down from 1024x1024 to 80x80 for larger button size
+    this.logoutButton.setDepth(2);
+    this.logoutButton.setInteractive();
+    
+    // Add hover effects
+    this.logoutButton.on('pointerover', () => {
+      this.logoutButton.setTint(0xffcccc); // Light red tint on hover
+      this.input.setDefaultCursor('pointer');
+    });
+    
+    this.logoutButton.on('pointerout', () => {
+      this.logoutButton.clearTint(); // Remove tint on hover out
+      this.input.setDefaultCursor('default');
+    });
+    
+    // Add click handler
+    this.logoutButton.on('pointerdown', () => {
+      this.handleLogout();
+    });
+
+    // Initially hide logout button (show only when logged in)
+    this.logoutButton.setVisible(false);
+  }
+
+  private async handleLogout() {
+    try {
+      const { AuthService } = await import('../../services/AuthService');
+      const authService = AuthService.getInstance();
+      await authService.logoutUser();
+      
+      // Go back to auth scene
+      this.scene.start('AuthScene');
+    } catch (error) {
+      console.error('Logout failed:', error);
+    }
+  }
+
+  private disableMainMenu() {
+    // Disable all interactive elements
+    if (this.startButton) this.startButton.disableInteractive();
+    if (this.leftHandedButton) this.leftHandedButton.disableInteractive();
+    if (this.rightHandedButton) this.rightHandedButton.disableInteractive();
+    if (this.logoutButton) this.logoutButton.disableInteractive();
+    
+    // Disable input temporarily
+    this.input.enabled = false;
+  }
+
+  private enableMainMenu() {
+    // Re-enable all interactive elements
+    if (this.startButton) this.startButton.setInteractive();
+    if (this.leftHandedButton) this.leftHandedButton.setInteractive();
+    if (this.rightHandedButton) this.rightHandedButton.setInteractive();
+    if (this.logoutButton) this.logoutButton.setInteractive();
+    
+    // Re-enable input
+    this.input.enabled = true;
+  }
+
+  private async checkAuthenticationStatus() {
+    try {
+      const { AuthService } = await import('../../services/AuthService');
+      const authService = AuthService.getInstance();
+      const isAuthenticated = await authService.isAuthenticated();
+      
+      if (isAuthenticated) {
+        // User is logged in, show logout button
+        this.logoutButton.setVisible(true);
+      } else {
+        // User is not logged in, hide logout button
+        this.logoutButton.setVisible(false);
+      }
+    } catch (error) {
+      console.error('Error checking authentication status:', error);
+      this.logoutButton.setVisible(false);
+    }
   }
 
   private createHandednessSelectionUI(centerX: number, centerY: number) {
@@ -468,15 +584,18 @@ export class MainMenu extends Scene {
     });
   }
 
-  private clearSaveData() {
+  private async clearSaveData() {
     try {
+      // Clear cloud save data
+      const saveService = SaveService.getInstance();
+      await saveService.deleteSave();
+      
+      // Clear local discoveries (these might still be stored locally)
       localStorage.removeItem('bestiary_discoveries');
-      localStorage.removeItem('toilet_merge_game_state');
-      localStorage.removeItem('game_volume');
-      localStorage.removeItem('goo_count'); // Reset goo count for new game
+      
       // Note: achievement_progress is NOT cleared - achievements persist across new games
     } catch (e) {
-      // Ignore errors
+      console.error('Error clearing save data:', e);
     }
   }
 

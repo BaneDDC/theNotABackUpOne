@@ -282,52 +282,64 @@ export class StoreManager {
         gooCost: 10 // Add goo cost for Recycler
       },
       {
-        name: "Item 3",
+        name: "",
         x: 728,
         y: 209,
         width: 117,
         height: 117,
-        itemNumber: 3
+        itemNumber: 3,
+        useAsset: true,
+        assetKey: 'outofstock'
       },
       {
-        name: "Item 4",
+        name: "",
         x: 997,
         y: 211,
         width: 116,
         height: 116,
-        itemNumber: 4
+        itemNumber: 4,
+        useAsset: true,
+        assetKey: 'outofstock'
       },
       {
-        name: "Item 5",
+        name: "",
         x: 176,
         y: 381,
         width: 115,
         height: 115,
-        itemNumber: 5
+        itemNumber: 5,
+        useAsset: true,
+        assetKey: 'outofstock'
       },
       {
-        name: "Item 6",
+        name: "",
         x: 451,
         y: 378,
         width: 116,
         height: 116,
-        itemNumber: 6
+        itemNumber: 6,
+        useAsset: true,
+        assetKey: 'outofstock'
       },
       {
-        name: "Item 7",
+        name: "",
         x: 735,
         y: 381,
         width: 117,
         height: 117,
-        itemNumber: 7
+        itemNumber: 7,
+        useAsset: true,
+        assetKey: 'outofstock'
       },
       {
-        name: "Item 8",
+        name: "",
         x: 997,
         y: 384,
         width: 116,
         height: 116,
-        itemNumber: 8
+        itemNumber: 8,
+        useAsset: true,
+        assetKey: 'outofstock'
       },
       {
         name: "Goo-mba",
@@ -912,7 +924,30 @@ export class StoreManager {
     sprite.setDisplaySize(width, height);
     container.add(sprite);
     
-    // Create text label positioned below the sprite
+    // For outofstock items, don't create text labels or interactive elements
+    if (assetKey === 'outofstock') {
+      // Just add the sprite to the container and return early
+      container.setDepth(10);
+      container.setVisible(this.isUIVisible);
+      this.storeContainer.add(container);
+      
+      // Store minimal item data for outofstock items
+      const itemData = {
+        container: container,
+        x: x,
+        y: y,
+        width: width,
+        height: height,
+        itemName: itemName,
+        itemNumber: this.nextItemNumber++,
+        gooCost: undefined
+      };
+      
+      this.placedItems.push(itemData);
+      return itemData;
+    }
+    
+    // Create text label positioned below the sprite for non-outofstock items
     let labelText = itemName;
     if (gooCost !== undefined) {
       labelText += `\n${gooCost} Goo`;

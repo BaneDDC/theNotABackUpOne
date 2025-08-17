@@ -64,8 +64,7 @@ export class AlienOrderSystem {
     this.alienSound2 = this.scene.sound.add('aliensound2', { volume: 0.6 })
     this.alienSound3 = this.scene.sound.add('aliensound3', { volume: 0.6 })
     this.alienSound4 = this.scene.sound.add('aliensound4', { volume: 0.6 })
-    // Check tutorial completion status when system is created
-    this.checkTutorialCompletionStatus()
+    // Don't check tutorial completion here - wait until create() is called
   }
 
   public create(): { container: Phaser.GameObjects.Container; alienHead: Phaser.GameObjects.Sprite; card: Phaser.GameObjects.Sprite } {
@@ -114,10 +113,10 @@ export class AlienOrderSystem {
     this.setupInteraction()
 
     // Add spacebar key listener to log position
-    this.setupSpacebarListener()
+    // Debug functionality removed - spacebar no longer logs position information
 
-    // Don't generate first order until tutorial is completed
-    // The system will remain completely hidden until then
+    // Now check tutorial completion status after container is created
+    this.checkTutorialCompletionStatus()
 
     return { 
       container: this.container, 
@@ -324,23 +323,7 @@ export class AlienOrderSystem {
     this.alienHead.setPosition(50, 0)
   }
 
-  private setupSpacebarListener(): void {
-    const spaceKey = this.scene.input.keyboard.addKey(Phaser.Input.Keyboard.KeyCodes.SPACE)
-    
-    spaceKey.on('down', () => {
-      console.log('Alien Order System Position:', {
-        containerX: Math.round(this.container.x),
-        containerY: Math.round(this.container.y),
-        cardX: Math.round(this.card.x),
-        cardY: Math.round(this.card.y),
-        alienX: Math.round(this.alienHead.x),
-        isVisible: this.isVisible,
-        permanentX: this.PERMANENT_X,
-        permanentY: this.PERMANENT_Y,
-        hiddenX: this.HIDDEN_X
-      })
-    })
-  }
+  // Debug functionality removed - spacebar listener method no longer needed
 
   // Method to change the alien head
   public setAlienHead(alienType: 'alien1' | 'alien2' | 'alien3' | 'alien4'): void {
@@ -402,23 +385,26 @@ export class AlienOrderSystem {
   }
 
   private generateAchievableOrder(): void {
+    console.log('🔄 Alien Order System: generateAchievableOrder called')
     // Get current items from the scene
     const currentItems = this.getCurrentItems()
+    console.log('🔄 Alien Order System: Current items found:', currentItems.length)
     
     if (currentItems.length === 0) {
+      console.log('🔄 Alien Order System: No items found, falling back to random generation')
       // If no items, fall back to random generation
       this.generateRandomOrder()
       return
     }
 
-    // Find all possible 1-merge recipes from current items
+    // Find all possible 1-merge recipes from current items, excluding problematic items
     const achievableRecipes: Array<{ingredients: [Item, Item], result: Item}> = []
     
     // Check all pairs of current items for valid merges
     for (let i = 0; i < currentItems.length; i++) {
       for (let j = i + 1; j < currentItems.length; j++) {
         const result = getMergeResult(currentItems[i], currentItems[j])
-        if (result) {
+        if (result && !this.isItemExcludedFromOrders(result)) {
           achievableRecipes.push({
             ingredients: [currentItems[i], currentItems[j]],
             result: result
@@ -463,9 +449,21 @@ export class AlienOrderSystem {
   }
 
   private generateRandomOrder(): void {
-    // Find a random recipe that requires merging
+    // Find a random recipe that requires merging, excluding problematic items
     const recipeEntries = Object.entries(RECIPES)
-    const randomRecipe = recipeEntries[Math.floor(Math.random() * recipeEntries.length)]
+    
+    // Filter out recipes that result in excluded items
+    const filteredRecipes = recipeEntries.filter(([ingredients, result]) => {
+      const requestedItem = result as Item
+      return !this.isItemExcludedFromOrders(requestedItem)
+    })
+    
+    if (filteredRecipes.length === 0) {
+      console.error('No valid recipes available for order generation after filtering')
+      return
+    }
+    
+    const randomRecipe = filteredRecipes[Math.floor(Math.random() * filteredRecipes.length)]
     
     if (!randomRecipe) {
       console.error('No recipes available for order generation')
@@ -639,21 +637,16 @@ export class AlienOrderSystem {
   }
 
   private addGooToPlayer(amount: number): void {
-    // Try to find the goo counter in the scene
+    // Add the goo amount to the player's score in the Game scene
     const gameScene = this.scene as any
-    if (gameScene.getGooCounter) {
-      const gooCounter = gameScene.getGooCounter()
-      if (gooCounter && gooCounter.collectGoo) {
-        gooCounter.collectGoo(amount)
-        console.log(`Successfully added ${amount} goo to player`)
-      } else {
-        console.log(`Goo counter found but collectGoo method missing`)
-      }
+    if (gameScene.addScore) {
+      gameScene.addScore(amount)
+      console.log(`Successfully added ${amount} points to player score from order completion`)
     } else {
-      console.log(`getGooCounter method not found on game scene`)
+      console.log(`addScore method not found on game scene - cannot award points`)
     }
     
-    // Fallback: log the goo earned
+    // Also log the goo earned for reference
     console.log(`Player earned ${amount} goo from order completion`)
   }
 
@@ -690,43 +683,173 @@ export class AlienOrderSystem {
   }
 
   private checkTutorialCompletionStatus(): void {
-    try {
-      const savedState = localStorage.getItem('toilet_merge_game_state')
-      if (savedState) {
-        const gameState = JSON.parse(savedState)
-        this.isTutorialCompleted = gameState.tutorialCompleted === true
-      }
-    } catch (error) {
-      // Default to tutorial not completed if we can't read the save
-      this.isTutorialCompleted = false
-    }
-    
-    // Also check the scene's tutorialPhase property if available
+    // Check the scene's tutorialPhase property if available (this is the primary source)
     const gameScene = this.scene as any
     if (gameScene.tutorialPhase !== undefined) {
       this.isTutorialCompleted = !gameScene.tutorialPhase
+      console.log('🔄 Alien Order System: Tutorial completion status from scene:', this.isTutorialCompleted)
+    } else {
+      // Fallback to localStorage if scene property not available
+      try {
+        const savedState = localStorage.getItem('toilet_merge_game_state')
+        if (savedState) {
+          const gameState = JSON.parse(savedState)
+          this.isTutorialCompleted = gameState.tutorialCompleted === true
+          console.log('🔄 Alien Order System: Tutorial completion status from localStorage:', this.isTutorialCompleted)
+        }
+      } catch (error) {
+        // Default to tutorial not completed if we can't read the save
+        this.isTutorialCompleted = false
+        console.log('🔄 Alien Order System: Tutorial completion status defaulted to false')
+      }
     }
     
     // If tutorial is completed, start the order system
     if (this.isTutorialCompleted && this.container) {
+      console.log('🔄 Alien Order System: Starting order system due to tutorial completion')
       this.startOrderSystem()
+    } else {
+      console.log('🔄 Alien Order System: Not starting order system - tutorial not completed or container not ready')
     }
   }
 
   // Method to manually mark tutorial as completed (called from Game scene)
   public setTutorialCompleted(completed: boolean): void {
+    console.log('🔄 Alien Order System: setTutorialCompleted called with:', completed, 'current status:', this.isTutorialCompleted)
+    
+    // Prevent duplicate calls
+    if (this.isTutorialCompleted === completed) {
+      console.log('🔄 Alien Order System: Tutorial completion status already set to:', completed, '- skipping')
+      return
+    }
+    
     this.isTutorialCompleted = completed
     if (completed && this.container) {
+      console.log('🔄 Alien Order System: Starting order system via setTutorialCompleted')
       // Start the order system now that tutorial is complete
       this.startOrderSystem()
+    } else {
+      console.log('🔄 Alien Order System: Cannot start order system - completed:', completed, 'container exists:', !!this.container)
     }
   }
 
   private startOrderSystem(): void {
+    console.log('🔄 Alien Order System: startOrderSystem called')
     // Generate first order
     this.generateNewOrder()
     
     // Slide in from the left to reveal the system
     this.slideIn()
+  }
+
+  public generateNewOrder(): void {
+    console.log('🔄 Alien Order System: generateNewOrder called, tutorial completed:', this.isTutorialCompleted)
+    if (this.isTutorialCompleted) {
+      console.log('🔄 Alien Order System: Generating achievable order')
+      this.generateAchievableOrder();
+    } else {
+      console.log('🔄 Alien Order System: Cannot generate order - tutorial not completed')
+    }
+  }
+
+  public restoreOrderFromSave(orderState: any): boolean {
+    console.log('🔄 Alien Order System: restoreOrderFromSave called with:', orderState)
+    try {
+      if (!orderState || !orderState.requestedItem) {
+        console.log('❌ Invalid order state for restoration');
+        return false;
+      }
+
+      // Create the order object from saved state
+      this.currentOrder = {
+        id: `order_${Date.now()}`,
+        requestedItem: orderState.requestedItem,
+        requiredItems: orderState.requiredItems,
+        difficulty: orderState.difficulty,
+        gooReward: orderState.gooReward,
+        isCompleted: orderState.isCompleted || false,
+        timeCreated: orderState.timeCreated || Date.now()
+      };
+
+      // If the order is not completed, display it and start the timer
+      if (!this.currentOrder.isCompleted) {
+        this.displayOrder();
+        this.startOrderTimer();
+        console.log('✅ Alien order restored from save:', this.currentOrder);
+        return true;
+      } else {
+        console.log('ℹ️ Restored completed order, generating new one');
+        this.generateNewOrder();
+        return true;
+      }
+    } catch (error) {
+      console.error('❌ Error restoring order from save:', error);
+      return false;
+    }
+  }
+
+  private isTutorialCompleted(): boolean {
+    // Get tutorial status from the Game scene instead of localStorage
+    const gameScene = this.scene as any;
+    if (gameScene.tutorialPhase !== undefined) {
+      return !gameScene.tutorialPhase; // tutorialPhase is true when tutorial is active, false when completed
+    }
+    
+    // Fallback to localStorage if scene property not available
+    try {
+      const savedState = localStorage.getItem('toilet_merge_game_state');
+      if (!savedState) {
+        return false; // No save data means tutorial not completed
+      }
+
+      const gameState = JSON.parse(savedState);
+      return gameState.tutorialCompleted === true;
+    } catch (error) {
+      return false; // Default to tutorial not completed if we can't read the save
+    }
+  }
+
+  private isFirstBoxOfSession(): boolean {
+    // Check if this is the first box of the current game session
+    // This should only be true for new games where tutorial is still active
+    const gameScene = this.scene as any;
+    if (gameScene.tutorialPhase !== undefined) {
+      return gameScene.tutorialPhase; // tutorialPhase is true when tutorial is active (new game)
+    }
+    
+    // Fallback: if we can't determine tutorial status, assume it's not the first box
+    return false;
+  }
+
+  private isItemExcludedFromOrders(item: Item): boolean {
+    // Exclude items that should never be requested in alien orders
+    
+    // Exclude specific problematic items
+    if (item === "Toilet" || item === "Unstable Goo") {
+      return true;
+    }
+    
+    // Exclude all enemy items (start with "Enemy:")
+    if (item.startsWith("Enemy:")) {
+      return true;
+    }
+    
+    // Exclude all hazard items (start with "Hazard:")
+    if (item.startsWith("Hazard:")) {
+      return true;
+    }
+    
+    // Exclude all trigger items (start with "Trigger:")
+    if (item.startsWith("Trigger:")) {
+      return true;
+    }
+    
+    // Exclude items containing "Unstable" (case-insensitive)
+    if (item.toLowerCase().includes("unstable")) {
+      return true;
+    }
+    
+    // Item is allowed in orders
+    return false;
   }
 }
