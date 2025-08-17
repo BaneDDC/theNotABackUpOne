@@ -10,6 +10,7 @@ import { StoreManager } from "../objects/StoreManager"
 import { PauseButton } from "../objects/ui/PauseButton"
 import { AlienOrderSystem } from "../objects/ui/AlienOrderSystem"
 import { AchievementManager } from "../objects/AchievementManager"
+import { SaveService } from "../../services/SaveService"
 
 export class Game extends Scene {
   private toiletSound!: Phaser.Sound.BaseSound
@@ -91,9 +92,13 @@ export class Game extends Scene {
   
   // Achievement system
   private achievementManager!: AchievementManager
+  
+  // Save system
+  private saveService: SaveService
 
   constructor() {
     super("Game")
+    this.saveService = SaveService.getInstance()
   }
 
   preload() {
@@ -121,7 +126,7 @@ export class Game extends Scene {
     });
   }
 
-  create() {
+  async create() {
     this.physics.world.setBounds(0, 0, 1170, 540)
     this.sceneManager = new (require('../managers/SceneManager').SceneManager)(this)
     this.sceneManager.setupGlobalCustomCursor()
@@ -151,12 +156,29 @@ export class Game extends Scene {
     const saveGameChoice = this.registry.get('saveGameChoice')
     let gameStateLoaded = false;
     if (saveGameChoice === 'continue') {
-      gameStateLoaded = this.loadGameState();
+      gameStateLoaded = await this.loadGameState();
     } else {
+      // Ensure completely fresh start for new games
       this.tutorialPhase = true;
       this.portalCreated = false;
       this.FlushCount = 0;
-      this.currentScore = 0; // Initialize score for new game
+      this.currentScore = 0;
+      
+      // Reset all managers to fresh state
+      if (this.gooCounter) {
+        this.gooCounter.setGooCount(0);
+      }
+      if (this.radioManager) {
+        this.radioManager.setVolume(0.3);
+        this.radioManager.setStation(0);
+        this.radioManager.powerOff();
+      }
+      this.isSinkOn = false;
+      
+      // Ensure no existing items or enemies are present
+      this.clearAllGameObjects();
+      
+      console.log('Fresh game state initialized');
     }
 
     if (!gameStateLoaded) {
@@ -255,6 +277,16 @@ export class Game extends Scene {
     this.events.on('score:subtract', (points: number) => {
       this.addScore(-points);
     });
+
+    // Listen for save requests from box opening
+    this.events.on('game:saveRequested', () => {
+      this.saveGameState();
+    });
+
+    // Listen for achievement updates to trigger save
+    this.events.on('achievements:updated', () => {
+      this.saveGameState();
+    });
   }
 
   private handlePlungerResult(result: 'green' | 'red' | 'yellow') {
@@ -287,8 +319,7 @@ export class Game extends Scene {
       this.FlushCount = 0
       this.updateToiletSprite()
       
-      // Save game state when toilet is completely unclogged
-      this.saveGameState()
+      // Game state will be saved automatically when next box is opened
       
       this.stopPlungerVibrateTimer()
       this.events.emit('toilet:fixed')
@@ -2360,7 +2391,7 @@ export class Game extends Scene {
     super.destroy()
   }
 
-  private saveGameState() {
+  private async saveGameState() {
     // Emit achievement event for game saving
     this.events.emit('achievement:game_saved');
     
@@ -2369,43 +2400,59 @@ export class Game extends Scene {
         tutorialCompleted: !this.tutorialPhase,
         portalCreated: this.portalCreated,
         flushCount: this.FlushCount,
-        currentScore: this.currentScore, // Save current score
+        currentScore: this.currentScore,
         items: this.getAllItemsState(),
-        storeItems: this.getStoreItemsState(),
+        enemies: this.getEnemiesState(),
         gooCount: this.gooCounter ? this.gooCounter.getGooCount() : 0,
-        // Add portal state information
+        recyclerPurchased: this.trashRecycler ? this.trashRecycler.visible : false,
+        goombas: this.getGoombasState(),
+        radioVolume: this.radioManager ? this.radioManager.getVolume() : 0.5,
+        radioStation: this.radioManager ? this.radioManager.getCurrentStation() : 0,
+        radioOn: this.radioManager ? this.radioManager.isPowered() : false,
+        sinkOn: this.isSinkOn,
+        gooSplatters: this.getGooSplattersState(),
+        bestiaryEntries: this.getBestiaryEntriesState(),
+        achievements: this.getAchievementsState(),
         portalExists: this.portalCreated && !!this.children.getByName('portal'),
         portalPosition: this.portalCreated ? { x: 564.96, y: 52.41 } : null,
         timestamp: Date.now(),
         version: "1.0"
       };
 
-      localStorage.setItem('toilet_merge_game_state', JSON.stringify(gameState));
-
+      // Save to cloud
+      const cloudSaveResult = await this.saveService.saveGame(gameState);
       
-      // Show brief save notification
-      this.showSaveNotification();
+      if (cloudSaveResult.success) {
+        this.showSaveNotification('Game saved to cloud!');
+      } else {
+        this.showSaveNotification('Cloud save failed!');
+        console.warn('Cloud save failed:', cloudSaveResult.error);
+      }
     } catch (error) {
-
+      console.error('Save failed:', error);
+      this.showSaveNotification('Save failed!');
     }
   }
 
-  private loadGameState() {
+  private async loadGameState() {
     // Only load if we're explicitly continuing a saved game
     const saveGameChoice = this.registry.get('saveGameChoice');
     if (saveGameChoice !== 'continue') {
-
       return false;
     }
 
     try {
-      const savedState = localStorage.getItem('toilet_merge_game_state');
-      if (!savedState) {
+      // Load from cloud
+      const cloudLoadResult = await this.saveService.loadGame();
+      let gameState: any = null;
 
+      if (cloudLoadResult.success && cloudLoadResult.data) {
+        gameState = cloudLoadResult.data;
+        console.log('Loaded game from cloud');
+      } else {
+        console.log('No cloud save data found');
         return false;
       }
-
-      const gameState = JSON.parse(savedState);
 
       
       // Validate save data structure
@@ -2433,6 +2480,51 @@ export class Game extends Scene {
         this.gooCounter.setGooCount(gameState.gooCount);
       }
 
+      // Restore radio settings
+      if (gameState.radioVolume !== undefined && this.radioManager) {
+        this.radioManager.setVolume(gameState.radioVolume);
+      }
+      if (gameState.radioStation !== undefined && this.radioManager) {
+        this.radioManager.setStation(gameState.radioStation);
+      }
+      if (gameState.radioOn !== undefined && this.radioManager) {
+        if (gameState.radioOn) {
+          this.radioManager.powerOn();
+        } else {
+          this.radioManager.powerOff();
+        }
+      }
+
+      // Restore sink state
+      if (gameState.sinkOn !== undefined) {
+        this.isSinkOn = gameState.sinkOn;
+        if (this.isSinkOn) {
+          this.sink.setTexture('sinkon');
+        } else {
+          this.sink.setTexture('sink');
+        }
+      }
+
+      // Restore recycler state
+      if (gameState.recyclerPurchased && this.trashRecycler) {
+        this.trashRecycler.setActive(true).setVisible(true);
+      }
+
+      // Restore goo splatters
+      if (gameState.gooSplatters && gameState.gooSplatters.length > 0) {
+        this.restoreGooSplattersFromSave(gameState.gooSplatters);
+      }
+
+      // Restore bestiary entries
+      if (gameState.bestiaryEntries && gameState.bestiaryEntries.length > 0) {
+        this.restoreBestiaryEntriesFromSave(gameState.bestiaryEntries);
+      }
+
+      // Restore achievements
+      if (gameState.achievements && this.achievementManager) {
+        this.achievementManager.setProgress(gameState.achievements);
+      }
+
       // If tutorial is completed and portal should exist, mark for creation
       if (gameState.tutorialCompleted && shouldHavePortal) {
         // Ensure tutorial phase is false and portal should be created
@@ -2445,11 +2537,17 @@ export class Game extends Scene {
         }
       }
 
-      // Restore store items first (before regular items)
-      if (gameState.storeItems && gameState.storeItems.length > 0) {
+      // Restore enemies first (before regular items)
+      if (gameState.enemies && gameState.enemies.length > 0) {
+        this.time.delayedCall(500, () => {
+          this.restoreEnemiesFromSave(gameState.enemies);
+        });
+      }
 
-        this.time.delayedCall(1000, () => {
-          this.restoreStoreItemsFromSave(gameState.storeItems);
+      // Restore goombas
+      if (gameState.goombas && gameState.goombas.length > 0) {
+        this.time.delayedCall(750, () => {
+          this.restoreGoombasFromSave(gameState.goombas);
         });
       }
 
@@ -2494,55 +2592,136 @@ export class Game extends Scene {
     return itemsState;
   }
 
-  private getStoreItemsState(): Array<{name: string, purchased: boolean, visible: boolean}> {
-    const storeItemsState: Array<{name: string, purchased: boolean, visible: boolean}> = [];
+  private getEnemiesState(): Array<{name: string, x: number, y: number, scale: number, type: string}> {
+    const enemiesState: Array<{name: string, x: number, y: number, scale: number, type: string}> = [];
     
-    // Check if trash recycler is purchased/visible
-    if (this.trashRecycler) {
-      storeItemsState.push({
-        name: 'trash_recycler',
-        purchased: this.trashRecycler.active && this.trashRecycler.visible,
-        visible: this.trashRecycler.visible
-      });
-    }
-    
-    // Add other store items here as they're implemented
-    // Example: radio, goomba, etc.
-    
-    return storeItemsState;
-  }
-
-  private restoreStoreItemsFromSave(storeItemsData: Array<{name: string, purchased: boolean, visible: boolean}>) {
-    storeItemsData.forEach(storeItem => {
-      try {
-        if (storeItem.name === 'trash_recycler' && storeItem.purchased) {
-          // Restore trash recycler to purchased state
-          if (this.trashRecycler) {
-            // If recycler is inside a scaled container, remove it and add to scene root
-            if (this.trashRecycler.parentContainer) {
-              this.trashRecycler.parentContainer.remove(this.trashRecycler);
-              this.add.existing(this.trashRecycler);
-            }
-            
-            // Restore original scale before showing
-            const orig = this.trashRecycler.getData('__origScale');
-            if (orig) {
-              this.trashRecycler.setScale(orig.x, orig.y);
-            }
-            
-            // Show the recycler
-            this.trashRecycler.setActive(true).setVisible(storeItem.visible);
-            
-
-          }
+    // Get all enemies from the scene
+    this.children.list.forEach(child => {
+      if ((child as any).itemName && child.active) {
+        const itemName = (child as any).itemName;
+        if (itemName.startsWith("Enemy:") || 
+            itemName === "Unstable Goo" || 
+            itemName === "Confetti Storm" || 
+            itemName === "Enemy: Goo Tornado" ||
+            (child as any).isUnstableGoo ||
+            (child as any).isConfettiStorm ||
+            (child as any).isGooTornado) {
+          enemiesState.push({
+            name: itemName,
+            x: (child as any).x,
+            y: (child as any).y,
+            scale: (child as any).scaleX,
+            type: itemName
+          });
         }
-        
-        // Add other store items restoration here
-        
-      } catch (error) {
-
       }
     });
+    
+    return enemiesState;
+  }
+
+  private getGoombasState(): Array<{x: number, y: number, scale: number}> {
+    const goombasState: Array<{x: number, y: number, scale: number}> = [];
+    
+    // Get all goombas from the scene
+    this.children.list.forEach(child => {
+      if ((child as any).itemName === "Goomba" && child.active) {
+        goombasState.push({
+          x: (child as any).x,
+          y: (child as any).y,
+          scale: (child as any).scaleX
+        });
+      }
+    });
+    
+    return goombasState;
+  }
+
+  private getGooSplattersState(): Array<{x: number, y: number, alpha: number, scale: number}> {
+    const gooSplattersState: Array<{x: number, y: number, alpha: number, scale: number}> = [];
+    
+    // Get all goo splatters from the scene
+    const gooSplatters = (this as any).gooSplatters || [];
+    gooSplatters.forEach((splatter: any) => {
+      if (splatter && splatter.active) {
+        gooSplattersState.push({
+          x: splatter.x,
+          y: splatter.y,
+          alpha: splatter.alpha,
+          scale: splatter.scaleX
+        });
+      }
+    });
+    
+    return gooSplattersState;
+  }
+
+  private getBestiaryEntriesState(): Array<string> {
+    // Get bestiary entries from the Bestiary scene
+    const bestiaryScene = this.scene.get('Bestiary') as any;
+    if (bestiaryScene && bestiaryScene.discoveredMerges) {
+      return bestiaryScene.discoveredMerges;
+    }
+    return [];
+  }
+
+  private getAchievementsState(): any {
+    // Get achievement progress from the AchievementManager
+    if (this.achievementManager) {
+      return this.achievementManager.getProgress();
+    }
+    return {};
+  }
+
+  private restoreEnemiesFromSave(enemiesData: Array<{name: string, x: number, y: number, scale: number, type: string}>) {
+    const merge = this.getMergeSystem();
+    if (!merge) return;
+
+    enemiesData.forEach(enemyData => {
+      try {
+        const enemy = merge.items.spawn(enemyData.name as any, enemyData.x, enemyData.y);
+        if (enemy) {
+          enemy.setScale(enemyData.scale);
+        }
+      } catch (error) {
+        console.warn('Failed to restore enemy:', enemyData.name, error);
+      }
+    });
+  }
+
+  private restoreGoombasFromSave(goombasData: Array<{x: number, y: number, scale: number}>) {
+    const merge = this.getMergeSystem();
+    if (!merge) return;
+
+    goombasData.forEach(goombaData => {
+      try {
+        const goomba = merge.items.spawn('Goomba' as any, goombaData.x, goombaData.y);
+        if (goomba) {
+          goomba.setScale(goombaData.scale);
+        }
+      } catch (error) {
+        console.warn('Failed to restore goomba:', error);
+      }
+    });
+  }
+
+  private restoreGooSplattersFromSave(gooSplattersData: Array<{x: number, y: number, alpha: number, scale: number}>) {
+    if (!this.enemyManager) return;
+
+    gooSplattersData.forEach(splatterData => {
+      try {
+        this.enemyManager.createGooSplatterAt(splatterData.x, splatterData.y, splatterData.scale);
+      } catch (error) {
+        console.warn('Failed to restore goo splatter:', error);
+      }
+    });
+  }
+
+  private restoreBestiaryEntriesFromSave(bestiaryEntriesData: Array<string>) {
+    const bestiaryScene = this.scene.get('Bestiary') as any;
+    if (bestiaryScene && bestiaryScene.discoveredMerges) {
+      bestiaryScene.discoveredMerges = bestiaryEntriesData;
+    }
   }
 
   private restoreItemsFromSave(itemsData: Array<{name: string, x: number, y: number, scale: number}>) {
@@ -3081,7 +3260,7 @@ export class Game extends Scene {
     this.controlsContainer.setVisible(false);
     
     // Show the bestiary book when store closes - fix typo
-    const bestiaryScene = this.scene.scene.get('Bestiary') as any;
+    const bestiaryScene = this.scene.get('Bestiary') as any;
     if (bestiaryScene && bestiaryScene.bookClosed) {
       bestiaryScene.bookClosed.setVisible(true);
     }
@@ -3117,5 +3296,35 @@ export class Game extends Scene {
 
   private showRecyclerSuccessMessage() {
     // removed: moved to TrashRecycler.showSuccessMessage
+  }
+
+  private clearAllGameObjects() {
+    // Clear all items and enemies from the scene
+    this.children.list.forEach(child => {
+      if ((child as any).itemName && child.active) {
+        const itemName = (child as any).itemName;
+        // Remove all items that have itemName property (items, enemies, etc.)
+        if (itemName.startsWith("Enemy:") || 
+            itemName === "Unstable Goo" || 
+            itemName === "Confetti Storm" || 
+            itemName === "Enemy: Goo Tornado" ||
+            (child as any).isUnstableGoo ||
+            (child as any).isConfettiStorm ||
+            (child as any).isGooTornado ||
+            itemName.includes("Goo") ||
+            itemName.includes("Item:")) {
+          child.destroy();
+        }
+      }
+    });
+    
+    // Clear any existing goo splatters
+    this.children.list.forEach(child => {
+      if ((child as any).isGooSplatter) {
+        child.destroy();
+      }
+    });
+    
+    console.log('All game objects cleared for fresh start');
   }
 }

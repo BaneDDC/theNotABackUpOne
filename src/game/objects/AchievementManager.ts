@@ -23,7 +23,6 @@ export class AchievementManager {
   constructor(scene: Scene) {
     this.scene = scene;
     this.initializeAchievements();
-    this.loadProgress();
     this.setupEventListeners();
     this.createNotificationContainer();
   }
@@ -526,6 +525,11 @@ export class AchievementManager {
     }
   }
 
+  private saveProgress() {
+    // Emit event to notify the Game scene that achievements have been updated
+    this.scene.events.emit('achievements:updated');
+  }
+
   // Event handlers
   private handleDiscovery(itemA: string, itemB: string, result: string) {
     // Get current discovery count
@@ -620,51 +624,8 @@ export class AchievementManager {
   }
 
   private getDiscoveryCount(): number {
-    try {
-      const saved = localStorage.getItem('bestiary_discoveries');
-      if (saved) {
-        const discoveries = JSON.parse(saved);
-        return discoveries.length;
-      }
-    } catch (e) {
-      // Ignore errors
-    }
+    // Discovery count is now handled by cloud save system
     return 0;
-  }
-
-  private loadProgress() {
-    try {
-      const saved = localStorage.getItem('achievement_progress');
-      if (saved) {
-        const progress = JSON.parse(saved);
-        for (const [id, data] of Object.entries(progress)) {
-          const achievement = this.achievements.get(id);
-          if (achievement) {
-            achievement.currentProgress = (data as any).currentProgress || 0;
-            achievement.completed = (data as any).completed || false;
-            achievement.completedAt = (data as any).completedAt;
-          }
-        }
-      }
-    } catch (e) {
-      // Ignore errors, start fresh
-    }
-  }
-
-  private saveProgress() {
-    try {
-      const progress: Record<string, any> = {};
-      for (const [id, achievement] of this.achievements) {
-        progress[id] = {
-          currentProgress: achievement.currentProgress,
-          completed: achievement.completed,
-          completedAt: achievement.completedAt
-        };
-      }
-      localStorage.setItem('achievement_progress', JSON.stringify(progress));
-    } catch (e) {
-      // Ignore errors
-    }
   }
 
   // Public methods
@@ -688,6 +649,29 @@ export class AchievementManager {
       achievement.completed = false;
       achievement.completedAt = undefined;
     }
-    this.saveProgress();
+  }
+
+  public getProgress(): any {
+    const progress: any = {};
+    this.achievements.forEach((achievement, id) => {
+      progress[id] = {
+        currentProgress: achievement.currentProgress,
+        completed: achievement.completed,
+        completedAt: achievement.completedAt
+      };
+    });
+    return progress;
+  }
+
+  public setProgress(progress: any) {
+    Object.keys(progress).forEach(id => {
+      const achievement = this.achievements.get(id);
+      if (achievement) {
+        const data = progress[id];
+        achievement.currentProgress = data.currentProgress || 0;
+        achievement.completed = data.completed || false;
+        achievement.completedAt = data.completedAt;
+      }
+    });
   }
 }
